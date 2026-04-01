@@ -157,6 +157,7 @@
     .tl-marker.tl-suspicious { background: var(--danger); }
     .tl-marker.tl-normal { background: var(--accent); }
     .tl-marker.tl-files { background: var(--success); }
+    .tl-marker.tl-tls { background: #a371f7; }
     .tl-marker.tl-mitre { background: var(--warning); }
     .tl-bar-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); font-family: monospace; margin-bottom: 16px; }
     .tl-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
@@ -173,6 +174,7 @@
     .cat-http    { background: rgba(63,185,80,0.12); color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
     .cat-files   { background: rgba(63,185,80,0.12); color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
     .cat-suspicious { background: rgba(248,81,73,0.1); color: var(--danger); border: 1px solid rgba(248,81,73,0.3); }
+    .cat-tls     { background: rgba(163,113,247,0.12); color: #a371f7; border: 1px solid rgba(163,113,247,0.3); }
     .cat-mitre   { background: rgba(227,179,65,0.12); color: var(--warning); border: 1px solid rgba(227,179,65,0.3); }
     tr.tl-highlight td { background: rgba(56,139,253,0.08) !important; }
 </style>
@@ -221,6 +223,7 @@
     <button class="tab-btn" onclick="showTab('http', this)">
         HTTP/S{% if http_flag_count %} <span class="badge badge-danger">{{ http_flag_count }}</span>{% endif %}
     </button>
+    <button class="tab-btn" onclick="showTab('tls', this)">TLS/JA3</button>
     <button class="tab-btn" onclick="showTab('files', this)">
         Files{% if mismatch_files %} <span class="badge badge-danger">{{ mismatch_files | length }}</span>{% endif %}
     </button>
@@ -465,6 +468,90 @@
     {% endif %}
 </div>
 
+{# ── TLS/JA3 ── #}
+<div id="tab-tls" class="tab-panel">
+    {% set tls = results.tls %}
+    <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-value">{{ tls.stats.total_sessions }}</div><div class="stat-label">TLS Sessions</div></div>
+        <div class="stat-card"><div class="stat-value">{{ tls.stats.unique_ja3 }}</div><div class="stat-label">Unique JA3</div></div>
+        <div class="stat-card"><div class="stat-value">{{ tls.stats.unique_ja3s }}</div><div class="stat-label">Unique JA3S</div></div>
+        <div class="stat-card">
+            <div class="stat-value" style="{{ 'color:var(--danger)' if tls.stats.flagged_count else '' }}">{{ tls.stats.flagged_count }}</div>
+            <div class="stat-label">Flagged Sessions</div>
+        </div>
+    </div>
+
+    {% if tls.sessions %}
+    <div class="card">
+        <div class="section-title">TLS Handshakes</div>
+        <table style="margin-top:12px;">
+            <thead>
+                <tr>
+                    <th>Source IP</th><th>Destination IP</th><th>Port</th><th>SNI</th>
+                    <th>TLS Version</th><th>JA3 Hash</th><th>JA3S Hash</th><th>Label</th><th>Flags</th><th></th>
+                </tr>
+            </thead>
+            <tbody id="tls-tbody">
+                {% for s in tls.sessions %}
+                <tr{% if s.flags %} class="suspicious"{% endif %}>
+                    <td class="{{ 'ip-int' if s.src_internal else '' }}">{{ s.src_ip }}</td>
+                    <td class="{{ 'ip-int' if s.dst_internal else '' }}">{{ s.dst_ip }}</td>
+                    <td>{{ s.dst_port }}</td>
+                    <td>{% if s.sni %}{{ s.sni }}{% else %}<span class="flag-tag">No SNI</span>{% endif %}</td>
+                    <td>{{ s.tls_version or '—' }}</td>
+                    <td>
+                        {% if s.ja3_hash %}
+                        <span class="copy-hash" onclick="copyHash('{{ s.ja3_hash }}', this)" title="Click to copy">{{ s.ja3_hash[:16] }}…</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>
+                        {% if s.ja3s_hash %}
+                        <span class="copy-hash" onclick="copyHash('{{ s.ja3s_hash }}', this)" title="Click to copy">{{ s.ja3s_hash[:16] }}…</span>
+                        {% else %}—{% endif %}
+                    </td>
+                    <td>{{ s.label or '' }}</td>
+                    <td>
+                        {% for f in s.flags %}
+                        {% if f.startswith('Malicious') or f == 'No SNI' %}
+                        <span class="flag-tag">{{ f }}</span>
+                        {% else %}
+                        <span class="flag-tag" style="background:rgba(227,179,65,0.1);border-color:rgba(227,179,65,0.3);color:var(--warning);">{{ f }}</span>
+                        {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td>
+                        {% if s.ja3_full or s.ja3s_full %}
+                        <button class="ephemeral-toggle-btn" onclick="toggleTlsDetail({{ loop.index0 }})">Detail ▼</button>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% if s.ja3_full or s.ja3s_full %}
+                <tr id="tls-detail-{{ loop.index0 }}" style="display:none;" class="low-priority">
+                    <td colspan="10" style="padding:10px 12px;">
+                        {% if s.ja3_full %}
+                        <div class="hash-row"><span class="hash-label">JA3 Full</span><span class="copy-hash" onclick="copyHash('{{ s.ja3_full }}', this)" title="Click to copy" style="word-break:break-all;">{{ s.ja3_full }}</span></div>
+                        {% endif %}
+                        {% if s.ja3_hash %}
+                        <div class="hash-row"><span class="hash-label">JA3 Hash</span><span class="copy-hash" onclick="copyHash('{{ s.ja3_hash }}', this)" title="Click to copy">{{ s.ja3_hash }}</span></div>
+                        {% endif %}
+                        {% if s.ja3s_full %}
+                        <div class="hash-row"><span class="hash-label">JA3S Full</span><span class="copy-hash" onclick="copyHash('{{ s.ja3s_full }}', this)" title="Click to copy" style="word-break:break-all;">{{ s.ja3s_full }}</span></div>
+                        {% endif %}
+                        {% if s.ja3s_hash %}
+                        <div class="hash-row" style="margin-bottom:0;"><span class="hash-label">JA3S Hash</span><span class="copy-hash" onclick="copyHash('{{ s.ja3s_hash }}', this)" title="Click to copy">{{ s.ja3s_hash }}</span></div>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endif %}
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card"><div class="empty-state">No TLS handshakes detected in this capture.</div></div>
+    {% endif %}
+</div>
+
 {# ── FILES ── #}
 <div id="tab-files" class="tab-panel">
     <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px;">
@@ -535,6 +622,7 @@
                 <option value="">All</option>
                 <option value="dns">DNS</option>
                 <option value="http">HTTP</option>
+                <option value="tls">TLS</option>
                 <option value="files">Files</option>
                 <option value="suspicious">Suspicious</option>
                 <option value="mitre">MITRE</option>
@@ -645,6 +733,16 @@ function copyHash(hash, el) {
     });
 }
 
+// ── TLS detail toggle ─────────────────────────────────────────────────────
+function toggleTlsDetail(idx) {
+    const row = document.getElementById('tls-detail-' + idx);
+    if (!row) return;
+    const isHidden = row.style.display === 'none';
+    row.style.display = isHidden ? '' : 'none';
+    const btn = row.previousElementSibling?.querySelector('.ephemeral-toggle-btn');
+    if (btn) btn.textContent = isHidden ? 'Detail ▲' : 'Detail ▼';
+}
+
 // ── File protocol filter ──────────────────────────────────────────────────
 function filterFilesByProto() {
     const filter = document.getElementById('file-proto-filter').value;
@@ -740,6 +838,7 @@ const tlDuration = {{ ov.duration_seconds | default(0) }};
         m.className = 'tl-marker';
         // colour by category
         if (ev.severity === 'suspicious') m.classList.add('tl-suspicious');
+        else if (ev.category === 'tls')    m.classList.add('tl-tls');
         else if (ev.category === 'files')  m.classList.add('tl-files');
         else if (ev.category === 'mitre')  m.classList.add('tl-mitre');
         else                               m.classList.add('tl-normal');

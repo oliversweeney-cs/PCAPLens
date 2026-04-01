@@ -96,6 +96,22 @@ def build_timeline(results):
             'severity': 'suspicious',
         })
 
+    # Flagged TLS session events
+    for s in results.get('tls', {}).get('flagged_sessions', []):
+        ts = s.get('timestamp', 0.0)
+        dest = s.get('sni') or s['dst_ip']
+        port = s.get('dst_port', 0)
+        flag_descs = ', '.join(s['flags'])
+        summary = f"TLS session to {dest}:{port} \u2014 {flag_descs}"
+        # Red for malicious/no-sni, amber for tool/rare/port/legacy
+        is_red = any(f.startswith('Malicious JA3') or f == 'No SNI' for f in s['flags'])
+        events.append({
+            'timestamp': ts,
+            'category': 'tls',
+            'summary': summary,
+            'severity': 'suspicious' if is_red else 'normal',
+        })
+
     # MITRE technique events — timestamp derived from earliest evidence
     for t in results.get('mitre', []):
         ts = _mitre_earliest_timestamp(t['id'], results)
@@ -145,9 +161,14 @@ def _mitre_earliest_timestamp(tech_id, results):
         return min(times) if times else 0.0
 
     if tech_id == 'T1036':
-        # Check HTTP CT mismatches first
         times = [r.get('timestamp', 0.0) for r in results.get('http', {}).get('requests', [])
                  if r.get('ct_mismatch')]
+        return min(times) if times else 0.0
+
+    if tech_id == 'T1573.001':
+        malicious = [s for s in results.get('tls', {}).get('sessions', [])
+                     if any('Malicious JA3' in f for f in s.get('flags', []))]
+        times = [s.get('timestamp', 0.0) for s in malicious]
         return min(times) if times else 0.0
 
     return 0.0

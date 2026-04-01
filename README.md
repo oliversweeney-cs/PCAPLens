@@ -12,16 +12,17 @@ Wireshark is powerful but manual and time-consuming for triage. PCAPLens automat
 
 ## Features
 
-- **Multi-tab analysis dashboard** — Eight dedicated tabs: Overview, Top Talkers, Ports & Protocols, DNS, HTTP/S, Files, Timeline, and MITRE ATT&CK
+- **Multi-tab analysis dashboard** — Nine dedicated tabs: Overview, Top Talkers, Ports & Protocols, DNS, HTTP/S, TLS/JA3, Files, Timeline, and MITRE ATT&CK
 - **Protocol breakdown** — Packet counts and byte volume per protocol with visual bar charts
 - **Top talker identification** — IP pair ranking with RFC 1918 internal IP detection and egress traffic flagging
 - **Suspicious port detection** — Flags known suspicious ports (4444, 1337, 31337, 9001, 6667, etc.) with ephemeral port collapsing for noise reduction
 - **DNS analysis** — Shannon entropy scoring for DGA detection, long subdomain flagging, bad TLD detection (.tk, .xyz, .pw, etc.), resolved IP extraction via tshark fallback, and sortable column headers
 - **HTTP/S request inspection** — Response header correlation (status, Content-Type, Server), flagged user agents (PowerShell, curl, wget, python-requests, go-http-client), bare IP host detection, and Content-Type mismatch flagging
+- **TLS/JA3 fingerprinting** — Extracts JA3/JA3S hashes from TLS handshakes, flags known malicious C2 fingerprints (Cobalt Strike, Sliver, Meterpreter, etc.), identifies scripting tool clients (PowerShell, curl, Python), detects missing SNI, rare JA3 hashes, non-standard ports, and legacy TLS versions
 - **Multi-protocol file extraction** — Extracts objects from HTTP, SMB, and FTP streams via tshark with magic byte detection, MD5/SHA1/SHA256 hashing, type mismatch flagging, and protocol filter dropdown
-- **MITRE ATT&CK mapping** — Nine technique detections with structured evidence tables showing indicators, types, and values
-- **Event timeline** — Chronological view of security-relevant events with a colour-coded horizontal timeline bar, clickable markers, and category filtering (DNS, HTTP, Files, Suspicious, MITRE)
-- **IOC export** — One-click export of actionable indicators (domains, IPs, hashes, user agents, MITRE techniques) in CSV or structured JSON format with base domain deduplication for DNS tunnelling indicators
+- **MITRE ATT&CK mapping** — Ten technique detections with structured evidence tables showing indicators, types, and values
+- **Event timeline** — Chronological view of security-relevant events with a colour-coded horizontal timeline bar, clickable markers, and category filtering (DNS, HTTP, TLS, Files, Suspicious, MITRE)
+- **IOC export** — One-click export of actionable indicators (domains, IPs, hashes, JA3 fingerprints, user agents, MITRE techniques) in CSV or structured JSON format with base domain deduplication for DNS tunnelling indicators
 - **Multiple report formats** — Full JSON export, self-contained HTML report (inline CSS, no external dependencies), and IOC bundles
 - **Colour-coded triage system** — Red (suspicious/flagged), amber (noteworthy), blue (internal IP), grey (low priority)
 - **Dark theme UI** — Purpose-built dark interface with monospace fonts for hash and IP readability
@@ -85,6 +86,7 @@ Open [http://localhost:8889](http://localhost:8889) in your browser.
 | T1036 | Masquerading | File magic bytes do not match declared extension or Content-Type header |
 | T1021.002 | Remote Services: SMB/Windows Admin Shares | Executable files (PE/ELF/Mach-O) transferred via SMB |
 | T1071.002 | Application Layer Protocol: File Transfer Protocols | Files transferred via FTP data streams |
+| T1573.001 | Encrypted Channel: Symmetric Cryptography | TLS Client Hello JA3 hash matches known C2/malware fingerprint |
 
 ## Project Structure
 
@@ -101,6 +103,7 @@ pcaplens/
 │   ├── dns.py              # DNS query/response analysis with tshark fallback
 │   ├── http.py             # HTTP request-response correlation and UA flagging
 │   ├── files.py            # HTTP/SMB/FTP file extraction via tshark
+│   ├── tls.py              # TLS/JA3 fingerprint extraction and flagging
 │   ├── mitre.py            # Rule-based MITRE ATT&CK technique mapping
 │   ├── timeline.py         # Chronological event collection from all modules
 │   └── ioc_export.py       # IOC bundle generation (CSV and JSON)
@@ -124,7 +127,6 @@ pcaplens/
 ## Roadmap
 
 - VirusTotal hash lookup integration on Files tab
-- TLS/JA3 fingerprinting
 - PCAP upload size limits and progress indicators
 - Sigma rule integration for detection logic
 

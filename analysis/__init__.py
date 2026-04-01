@@ -5,6 +5,7 @@ from .ports import analyse_ports
 from .dns import analyse_dns
 from .http import analyse_http
 from .files import extract_files
+from .tls import analyse_tls
 from .mitre import analyse_mitre
 from .timeline import build_timeline
 
@@ -18,6 +19,7 @@ def run_analysis(filepath):
         'dns': analyse_dns(packets, pcap_path=filepath),
         'http': analyse_http(packets),
         'files': extract_files(filepath),
+        'tls': analyse_tls(filepath),
     }
     results['mitre'] = analyse_mitre(results)
     results['timeline'] = build_timeline(results)

@@ -13,6 +13,8 @@ def analyse_mitre(results):
     _check_file_type_mismatch(results, triggered)
     _check_smb_executables(results, triggered)
     _check_ftp_files(results, triggered)
+    _check_tls_malicious_ja3(results, triggered)
+    _check_tls_nonstandard_port(results, triggered)
     return list(triggered.values())
 
 
@@ -167,6 +169,44 @@ def _check_ftp_files(results, triggered):
             for f in ftp_files[:10]
         ]
         triggered['T1071.002'] = t
+
+
+def _check_tls_malicious_ja3(results, triggered):
+    malicious = [
+        s for s in results.get('tls', {}).get('sessions', [])
+        if any('Malicious JA3' in f for f in s.get('flags', []))
+    ]
+    if malicious:
+        t = _technique('T1573.001')
+        t['evidence'] = [
+            {
+                'indicator': s['ja3_hash'],
+                'flag_type': 'TLS Fingerprint',
+                'value': f"{s['label']} → {s['sni'] or s['dst_ip']}:{s['dst_port']}",
+            }
+            for s in malicious[:10]
+        ]
+        triggered['T1573.001'] = t
+
+
+def _check_tls_nonstandard_port(results, triggered):
+    """Feed TLS non-standard port sessions into existing T1571 evidence."""
+    tls_ns = [
+        s for s in results.get('tls', {}).get('sessions', [])
+        if any('Non-Standard Port' in f for f in s.get('flags', []))
+    ]
+    if not tls_ns:
+        return
+    # Append to existing T1571 if already triggered, otherwise create it
+    if 'T1571' not in triggered:
+        triggered['T1571'] = _technique('T1571')
+        triggered['T1571']['evidence'] = []
+    for s in tls_ns[:10]:
+        triggered['T1571']['evidence'].append({
+            'indicator': str(s['dst_port']),
+            'flag_type': 'TLS Non-Standard Port',
+            'value': f"TLS to {s['sni'] or s['dst_ip']}:{s['dst_port']}",
+        })
 
 
 def _technique(technique_id):

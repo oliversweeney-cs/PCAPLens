@@ -128,6 +128,48 @@ EXT_TO_MIME = {
     '.7z':   'application/x-7z-compressed',
 }
 
+# ── TLS / JA3 fingerprinting ──────────────────────────────────────────────
+
+# Known malicious JA3 hashes — point-in-time signatures sourced from public
+# threat intelligence (abuse.ch, Salesforce JA3 research, vendor reports).
+# JA3 hashes can change with C2 profile updates; review and refresh periodically.
+MALICIOUS_JA3 = {
+    '72a589da586844d7f0818ce684948eea': 'Cobalt Strike',
+    'a0e9f5d64349fb13191bc781f81f42e1': 'Cobalt Strike',
+    'b742b407517bac9536a77a7b0fee28e9': 'Cobalt Strike',
+    '37f463bf4616ecd445d4a1937da06e19': 'Cobalt Strike (Malleable)',
+    '5d65ea3fb1d4aa7d826733d2f2cbbb1d': 'Metasploit Meterpreter',
+    '6734f37431670b3ab4292b8f60f29984': 'Trickbot',
+    'e7d705a3286e19ea42f587b344ee6865': 'Trickbot',
+    'cd08e31494816f6e8ee76382b4c5bc37': 'Sliver C2',
+    '2b01a96a88df5e3b0e8e5a47f0751b57': 'Brute Ratel C4',
+    'fc54e0d16d9764783542f0146a98b300': 'AsyncRAT',
+    '1e64fd6c75a0d7d152bdb3e32a6eb2e2': 'PoshC2',
+}
+
+# Known legitimate tool JA3 hashes — amber/informational, not inherently
+# malicious but noteworthy in contexts where scripting tools are unexpected.
+# Checked AFTER MALICIOUS_JA3 so malicious labels take precedence.
+TOOL_JA3 = {
+    '3b5074b1b5d032e5620f69f9f700ff0e': 'Python requests',
+    'e4f26f82b5d40b9b48f48a42b7c198ab': 'Python urllib3',
+    '2c14bfb3f8a2e7a2ce75e26a49407eab': 'PowerShell',
+    'd0ec4b50a944b182fc10ff51f883ccf7': 'PowerShell/.NET',
+    '456523fc94726331a4d5a2e1d40b2cd7': 'curl',
+    'b32309a26951912be7dba376398abc3b': 'curl',
+    'e3bb8f17f841892db1a703c64783c5cf': 'wget',
+    '292ea5de0929d71d50d0874ee8e7cbb3': 'Go HTTP Client',
+    'a5a0ed3580c2e7a568b409e98e1e4c21': 'Ruby net/http',
+}
+
+# tshark outputs TLS version as hex string or decimal — support both forms
+TLS_VERSION_MAP = {
+    '0x0301': 'TLS 1.0', '769': 'TLS 1.0',
+    '0x0302': 'TLS 1.1', '770': 'TLS 1.1',
+    '0x0303': 'TLS 1.2', '771': 'TLS 1.2',
+    '0x0304': 'TLS 1.3', '772': 'TLS 1.3',
+}
+
 MITRE_TECHNIQUES = [
     {
         'id': 'T1571',
@@ -182,5 +224,11 @@ MITRE_TECHNIQUES = [
         'name': 'Application Layer Protocol: File Transfer Protocols',
         'url': 'https://attack.mitre.org/techniques/T1071/002',
         'trigger': 'ftp_files',
+    },
+    {
+        'id': 'T1573.001',
+        'name': 'Encrypted Channel: Symmetric Cryptography',
+        'url': 'https://attack.mitre.org/techniques/T1573/001',
+        'trigger': 'tls_malicious_ja3',
     },
 ]

@@ -135,6 +135,23 @@ def build_ioc_bundle(results, source_file=''):
             'context': ctx,
         })
 
+    # ── JA3 hashes: only flagged TLS sessions ──
+    ja3_hashes = []
+    seen_ja3 = set()
+    for s in results.get('tls', {}).get('flagged_sessions', []):
+        ja3 = s.get('ja3_hash', '')
+        if not ja3 or ja3 in seen_ja3:
+            continue
+        seen_ja3.add(ja3)
+        is_malicious = any('Malicious JA3' in f for f in s.get('flags', []))
+        ctx = s.get('label') or '; '.join(s.get('flags', []))
+        ja3_hashes.append({
+            'value': ja3,
+            'context': ctx,
+            'severity': 'high' if is_malicious else 'medium',
+            'mitre_technique': 'T1573.001' if is_malicious else '',
+        })
+
     # ── User agents: flagged UA strings ──
     for ua in results.get('http', {}).get('user_agents', []):
         if ua.get('suspicious'):
@@ -160,6 +177,7 @@ def build_ioc_bundle(results, source_file=''):
     total_iocs = (
         len(domains) + len(ips) +
         len(hashes) * 3 +        # sha256 + sha1 + md5 per file
+        len(ja3_hashes) +
         len(user_agents) +
         len(mitre_techniques)
     )
@@ -174,6 +192,7 @@ def build_ioc_bundle(results, source_file=''):
             'domains': domains,
             'ips': ips,
             'hashes': hashes,
+            'ja3_hashes': ja3_hashes,
             'user_agents': user_agents,
             'mitre_techniques': mitre_techniques,
         },
@@ -183,6 +202,7 @@ def build_ioc_bundle(results, source_file=''):
                 'domains': len(domains),
                 'ips': len(ips),
                 'hashes': len(hashes),
+                'ja3_hashes': len(ja3_hashes),
                 'user_agents': len(user_agents),
                 'mitre_techniques': len(mitre_techniques),
             },
@@ -229,6 +249,15 @@ def to_csv_string(bundle):
                 'severity': h['severity'],
                 'mitre_technique': h['mitre_technique'],
             })
+
+    for j in iocs.get('ja3_hashes', []):
+        writer.writerow({
+            'ioc_type': 'ja3',
+            'ioc_value': j['value'],
+            'context': j['context'],
+            'severity': j['severity'],
+            'mitre_technique': j['mitre_technique'],
+        })
 
     for ua in iocs['user_agents']:
         writer.writerow({

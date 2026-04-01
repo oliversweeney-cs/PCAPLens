@@ -73,6 +73,7 @@
     .cat-http    { background: rgba(63,185,80,0.12); color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
     .cat-files   { background: rgba(63,185,80,0.12); color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
     .cat-suspicious { background: rgba(248,81,73,0.1); color: var(--danger); border: 1px solid rgba(248,81,73,0.3); }
+    .cat-tls     { background: rgba(163,113,247,0.12); color: #a371f7; border: 1px solid rgba(163,113,247,0.3); }
     .cat-mitre   { background: rgba(227,179,65,0.12); color: var(--warning); border: 1px solid rgba(227,179,65,0.3); }
     .proto-badge {
         display: inline-block; padding: 1px 6px; border-radius: 3px;
@@ -256,6 +257,30 @@
         <td>{{ f.declared_type }}</td>
         <td>{{ f.actual_type }}</td>
         <td style="font-size:10px;">{{ f.md5 }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+
+{# ── TLS/JA3 ── #}
+{% if results.tls and results.tls.sessions %}
+<div class="section">
+<h2>TLS/JA3 ({{ results.tls.stats.total_sessions }} sessions, {{ results.tls.stats.flagged_count }} flagged)</h2>
+<table>
+    <thead><tr><th>Source IP</th><th>Destination IP</th><th>Port</th><th>SNI</th><th>TLS Version</th><th>JA3 Hash</th><th>Label</th><th>Flags</th></tr></thead>
+    <tbody>
+    {% for s in results.tls.sessions %}
+    <tr{% if s.flags %} class="suspicious"{% endif %}>
+        <td>{{ s.src_ip }}</td>
+        <td>{{ s.dst_ip }}</td>
+        <td>{{ s.dst_port }}</td>
+        <td>{% if s.sni %}{{ s.sni }}{% else %}<span class="flag-tag">No SNI</span>{% endif %}</td>
+        <td>{{ s.tls_version or '—' }}</td>
+        <td style="font-size:10px;">{{ s.ja3_hash or '—' }}</td>
+        <td>{{ s.label or '' }}</td>
+        <td>{% for f in s.flags %}<span class="flag-tag">{{ f }}</span> {% endfor %}</td>
     </tr>
     {% endfor %}
     </tbody>
