@@ -35,6 +35,8 @@ Wireshark is powerful but manual and time-consuming for triage. PCAPLens automat
 
 ![File Extraction](screenshots/files.png)
 
+![TLS/JA3 Fingerprinting](screenshots/tls.png)
+
 ![MITRE ATT&CK](screenshots/mitre.png)
 
 ## Installation
