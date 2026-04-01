@@ -124,7 +124,7 @@ pcaplens/
 - **No VirusTotal integration yet** — Hashes are extracted for manual lookup or use with [ioc-enrich](https://github.com/oliversweeney-cs/ioc-enrich)
 - **FTP extraction** — Depends on tshark's ability to reassemble FTP data streams from the capture
 - **Single-user** — No authentication or case management
-- **No TLS decryption** — Encrypted traffic analysis limited to metadata (SNI, JA3 not yet implemented)
+- **No TLS decryption** — Encrypted traffic analysis limited to metadata (SNI, JA3/JA3S fingerprints, certificate fields); payload content is not decrypted
 
 ## Roadmap
 
