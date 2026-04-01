@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}PCAPLens — Upload{% endblock %}
+
+{% block extra_head %}
+<style>
+    .upload-wrapper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: calc(100vh - 53px);
+    }
+    .upload-card {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 40px;
+        width: 100%;
+        max-width: 460px;
+        text-align: center;
+    }
+    .upload-icon { font-size: 44px; margin-bottom: 14px; }
+    .upload-title { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+    .upload-subtitle { color: var(--muted); margin-bottom: 28px; font-size: 13px; }
+    .file-zone {
+        position: relative;
+        border: 2px dashed var(--border);
+        border-radius: 6px;
+        padding: 28px 20px;
+        margin-bottom: 14px;
+        cursor: pointer;
+        transition: border-color 0.2s, background 0.2s;
+        color: var(--muted);
+        font-size: 13px;
+    }
+    .file-zone:hover, .file-zone.dragover {
+        border-color: var(--accent);
+        background: rgba(56,139,253,0.04);
+        color: var(--text);
+    }
+    .file-zone input[type="file"] {
+        position: absolute;
+        inset: 0;
+        opacity: 0;
+        cursor: pointer;
+        width: 100%;
+    }
+    .file-selected { margin-bottom: 14px; font-size: 12px; color: var(--accent); font-family: monospace; min-height: 18px; }
+    .btn-submit {
+        display: block;
+        width: 100%;
+        padding: 10px;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: opacity 0.2s;
+    }
+    .btn-submit:hover { opacity: 0.85; }
+    .btn-submit:disabled { opacity: 0.45; cursor: not-allowed; }
+    .error-box {
+        background: rgba(248,81,73,0.1);
+        border: 1px solid rgba(248,81,73,0.35);
+        color: var(--danger);
+        border-radius: 6px;
+        padding: 10px 14px;
+        margin-bottom: 18px;
+        font-size: 13px;
+        text-align: left;
+    }
+    .spinner {
+        display: none;
+        width: 18px; height: 18px;
+        border: 2px solid var(--border);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+        margin: 12px auto 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="upload-wrapper">
+    <div class="upload-card">
+        <div class="upload-icon">🔬</div>
+        <div class="upload-title">PCAPLens</div>
+        <div class="upload-subtitle">Upload a .pcap or .pcapng capture file to begin analysis</div>
+
+        {% if error %}
+        <div class="error-box">{{ error }}</div>
+        {% endif %}
+
+        <form method="post" action="/analyse" enctype="multipart/form-data" id="form">
+            <div class="file-zone" id="zone">
+                <span id="zone-label">Click or drag a capture file here</span>
+                <input type="file" id="file-input" name="pcap" accept=".pcap,.pcapng">
+            </div>
+            <div class="file-selected" id="file-name"></div>
+            <button type="submit" class="btn-submit" id="submit-btn">Analyse</button>
+            <div class="spinner" id="spinner"></div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const input = document.getElementById('file-input');
+    const zone = document.getElementById('zone');
+    const label = document.getElementById('zone-label');
+    const nameEl = document.getElementById('file-name');
+    const btn = document.getElementById('submit-btn');
+
+    input.addEventListener('change', () => {
+        const name = input.files[0]?.name || '';
+        nameEl.textContent = name;
+        label.textContent = name ? 'File selected — click to change' : 'Click or drag a capture file here';
+    });
+
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+    zone.addEventListener('drop', e => {
+        e.preventDefault();
+        zone.classList.remove('dragover');
+        if (e.dataTransfer.files.length) {
+            input.files = e.dataTransfer.files;
+            input.dispatchEvent(new Event('change'));
+        }
+    });
+
+    document.getElementById('form').addEventListener('submit', () => {
+        btn.disabled = true;
+        btn.textContent = 'Analysing…';
+        document.getElementById('spinner').style.display = 'block';
+    });
+</script>
+{% endblock %}

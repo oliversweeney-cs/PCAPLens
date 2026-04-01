@@ -1,0 +1,780 @@
+{% extends "base.html" %}
+{% block title %}PCAPLens — {{ filename }}{% endblock %}
+
+{% block extra_head %}
+<style>
+    /* ── layout ── */
+    .results-header {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        margin-bottom: 20px; flex-wrap: wrap; gap: 12px;
+    }
+    .results-meta { font-size: 12px; color: var(--muted); font-family: monospace; margin-top: 2px; }
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .btn {
+        padding: 6px 14px; border-radius: 6px; font-size: 13px; font-weight: 500;
+        cursor: pointer; border: 1px solid var(--border); background: var(--surface2);
+        color: var(--text); text-decoration: none; transition: background 0.15s; white-space: nowrap;
+    }
+    .btn:hover { background: var(--surface); text-decoration: none; }
+    .btn-outline { background: transparent; border-color: var(--accent); color: var(--accent); }
+    .btn-ioc { background: transparent; border-color: var(--warning); color: var(--warning); }
+    .btn-ioc:hover { background: rgba(227,179,65,0.08); }
+
+    /* ── IOC dropdown ── */
+    .ioc-btn-wrap { position: relative; }
+    .ioc-dropdown {
+        position: absolute; top: calc(100% + 4px); right: 0; z-index: 100;
+        background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+        min-width: 120px; box-shadow: 0 4px 16px rgba(0,0,0,0.4); overflow: hidden;
+    }
+    .ioc-drop-item {
+        display: block; padding: 8px 14px; font-size: 13px; color: var(--text);
+        text-decoration: none; transition: background 0.12s;
+    }
+    .ioc-drop-item:hover { background: var(--surface2); text-decoration: none; }
+
+    /* ── tabs ── */
+    .tabs {
+        display: flex; border-bottom: 1px solid var(--border);
+        overflow-x: auto; scrollbar-width: none; margin-bottom: 0;
+    }
+    .tabs::-webkit-scrollbar { display: none; }
+    .tab-btn {
+        padding: 9px 16px; background: none; border: none;
+        border-bottom: 2px solid transparent; color: var(--muted);
+        cursor: pointer; font-size: 13px; font-weight: 500; white-space: nowrap;
+        margin-bottom: -1px; transition: color 0.15s, border-color 0.15s;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
+    .badge-muted { background: rgba(139,148,158,0.15); color: var(--muted); border: 1px solid rgba(139,148,158,0.25); }
+
+    /* ── colour legend ── */
+    .color-legend {
+        display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+        padding: 8px 0 18px; border-bottom: 1px solid var(--border); margin-bottom: 20px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--muted); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+    .dot-red    { background: var(--danger); }
+    .dot-orange { background: var(--warning); }
+    .dot-blue   { background: #58a6ff; }
+    .dot-grey   { background: var(--muted); }
+
+    /* ── colour coding ── */
+    .ip-int { color: #58a6ff !important; font-family: 'Cascadia Code','Fira Code','Consolas',monospace; }
+    tr.tr-top5 > td:first-child { color: var(--warning); font-weight: 700; }
+    tr.tr-egress { background: rgba(227,179,65,0.05); }
+    tr.tr-egress:hover td { background: rgba(227,179,65,0.08) !important; }
+    tr.noteworthy td { color: var(--warning); }
+    tr.low-priority td { color: var(--muted); font-size: 11px; }
+    .egress-badge {
+        display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+        color: var(--warning); border: 1px solid rgba(227,179,65,0.4);
+        border-radius: 3px; padding: 1px 4px; margin-left: 4px; vertical-align: middle;
+    }
+
+    /* ── bar chart ── */
+    .bar-chart { display: flex; flex-direction: column; gap: 7px; }
+    .bar-row { display: grid; grid-template-columns: 180px 1fr 70px; align-items: center; gap: 10px; }
+    .bar-label { font-family: monospace; font-size: 12px; text-align: right; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .bar-track { background: var(--surface2); border-radius: 2px; height: 14px; overflow: hidden; }
+    .bar-fill { height: 100%; background: var(--accent); border-radius: 2px; min-width: 2px; }
+    .bar-count { font-family: monospace; font-size: 12px; color: var(--muted); }
+
+    /* ── mitre ── */
+    .mitre-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+    .mitre-card { background: var(--surface2); border: 1px solid rgba(248,81,73,0.35); border-radius: 6px; padding: 16px; }
+    .mitre-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .mitre-id a { font-family: monospace; font-size: 12px; color: var(--danger); font-weight: 700; }
+    .mitre-indicator-count { font-size: 11px; color: var(--muted); }
+    .mitre-name { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+    .mitre-ev-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .mitre-ev-table th { background: rgba(0,0,0,0.2); color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px; padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--border); }
+    .mitre-ev-table td { padding: 4px 8px; border-bottom: 1px solid rgba(48,54,61,0.5); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; word-break: break-all; color: var(--muted); }
+    .mitre-ev-table tr:last-child td { border-bottom: none; }
+
+    /* ── cred warning ── */
+    .cred-warning { background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.35); border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; }
+    .cred-warning-title { color: var(--danger); font-weight: 600; margin-bottom: 8px; }
+    .cred-item { font-family: monospace; font-size: 12px; color: var(--muted); padding: 2px 0; }
+
+    /* ── DNS search / sort ── */
+    .dns-search {
+        background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+        padding: 6px 10px; border-radius: 4px; font-family: monospace; font-size: 12px;
+        width: 280px; outline: none; transition: border-color 0.15s;
+    }
+    .dns-search:focus { border-color: var(--accent); }
+    .dns-flagged-card { cursor: pointer; transition: outline 0.15s; user-select: none; }
+    .dns-flagged-card:hover { outline: 1px solid rgba(248,81,73,0.4); }
+    .dns-flagged-card.sort-active { outline: 1px solid var(--danger); }
+    .sortable-th { cursor: pointer; user-select: none; white-space: nowrap; }
+    .sortable-th:hover { color: var(--text); }
+    .sort-arrow { color: var(--muted); font-size: 10px; margin-left: 3px; }
+
+    /* ── ephemeral / hash toggle ── */
+    .ephemeral-toggle-btn {
+        background: none; border: 1px solid var(--border); color: var(--muted);
+        border-radius: 3px; padding: 1px 7px; font-size: 11px; cursor: pointer;
+        margin-left: 8px; transition: color 0.15s, border-color 0.15s;
+    }
+    .ephemeral-toggle-btn:hover { color: var(--warning); border-color: var(--warning); }
+    .copy-hash {
+        font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
+        font-size: 11px; cursor: pointer; color: var(--muted);
+        padding: 1px 4px; border-radius: 2px; display: inline-block;
+    }
+    .copy-hash:hover { background: var(--surface2); color: var(--text); }
+    .hash-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.4px; display: block; margin-bottom: 1px; }
+    .hash-row { margin-bottom: 6px; }
+
+    /* ── Protocol badges ── */
+    .proto-badge {
+        display: inline-block; padding: 1px 6px; border-radius: 3px;
+        font-size: 10px; font-weight: 600; font-family: monospace; text-transform: uppercase;
+    }
+    .proto-http { background: rgba(56,139,253,0.15); color: #58a6ff; border: 1px solid rgba(56,139,253,0.3); }
+    .proto-smb  { background: rgba(227,179,65,0.12); color: var(--warning); border: 1px solid rgba(227,179,65,0.3); }
+    .proto-ftp  { background: rgba(63,185,80,0.12); color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
+
+    /* ── Timeline ── */
+    .tl-bar-wrap {
+        position: relative; height: 32px; background: var(--surface2);
+        border: 1px solid var(--border); border-radius: 4px; margin-bottom: 6px;
+        overflow: visible;
+    }
+    .tl-bar-inner { position: relative; height: 100%; }
+    .tl-marker {
+        position: absolute; top: 4px; width: 3px; height: 24px;
+        border-radius: 2px; cursor: pointer; opacity: 0.75;
+        transition: opacity 0.12s, transform 0.12s;
+        transform: translateX(-50%);
+    }
+    .tl-marker:hover, .tl-marker.active { opacity: 1; transform: translateX(-50%) scaleY(1.15); }
+    .tl-marker.tl-suspicious { background: var(--danger); }
+    .tl-marker.tl-normal { background: var(--accent); }
+    .tl-marker.tl-files { background: var(--success); }
+    .tl-marker.tl-mitre { background: var(--warning); }
+    .tl-bar-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); font-family: monospace; margin-bottom: 16px; }
+    .tl-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+    .tl-filter {
+        background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+        padding: 5px 10px; border-radius: 4px; font-size: 12px; outline: none; cursor: pointer;
+    }
+    .tl-filter:focus { border-color: var(--accent); }
+    .cat-badge {
+        display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 10px;
+        font-weight: 600; font-family: monospace; text-transform: uppercase;
+    }
+    .cat-dns     { background: rgba(56,139,253,0.15); color: #58a6ff; border: 1px solid rgba(56,139,253,0.3); }
+    .cat-http    { background: rgba(63,185,80,0.12); color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
+    .cat-files   { background: rgba(63,185,80,0.12); color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
+    .cat-suspicious { background: rgba(248,81,73,0.1); color: var(--danger); border: 1px solid rgba(248,81,73,0.3); }
+    .cat-mitre   { background: rgba(227,179,65,0.12); color: var(--warning); border: 1px solid rgba(227,179,65,0.3); }
+    tr.tl-highlight td { background: rgba(56,139,253,0.08) !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+{% set ov = results.overview %}
+{% set mitre_count = results.mitre | length %}
+{% set dns_flagged = results.dns.flagged_count %}
+{% set cred_count = results.http.cleartext_creds | length %}
+{% set suspicious_ports = results.ports.ports | selectattr('suspicious', 'equalto', true) | list %}
+{% set http_flag_count = cred_count + results.http.flagged_ua_count + results.http.ct_mismatch_count %}
+{% set files = results.files %}
+{% set mismatch_files = files | selectattr('type_mismatch') | list %}
+{% set timeline_events = results.timeline %}
+
+<div class="results-header">
+    <div>
+        <div style="font-size:16px;font-weight:600;">Analysis Results</div>
+        <div class="results-meta">{{ filename }}</div>
+    </div>
+    <div class="btn-row">
+        <a href="/" class="btn btn-outline">← New Analysis</a>
+        <a href="/export/json/{{ result_id }}" class="btn">Export JSON</a>
+        <a href="/export/html/{{ result_id }}" class="btn">Export HTML</a>
+        <div class="ioc-btn-wrap" id="ioc-btn-wrap">
+            <button class="btn btn-ioc" onclick="toggleIocMenu(event)">Export IOCs ▾</button>
+            <div class="ioc-dropdown" id="ioc-dropdown" style="display:none;">
+                <a href="/export/iocs/csv/{{ result_id }}" class="ioc-drop-item">CSV</a>
+                <a href="/export/iocs/json/{{ result_id }}" class="ioc-drop-item">JSON</a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="tabs">
+    <button class="tab-btn active" onclick="showTab('overview', this)">Overview</button>
+    <button class="tab-btn" onclick="showTab('talkers', this)">Top Talkers</button>
+    <button class="tab-btn" onclick="showTab('ports', this)">
+        Ports &amp; Protocols
+        {% if suspicious_ports %}<span class="badge badge-danger">{{ suspicious_ports | length }}</span>{% endif %}
+    </button>
+    <button class="tab-btn" onclick="showTab('dns', this)">
+        DNS{% if dns_flagged %} <span class="badge badge-danger">{{ dns_flagged }}</span>{% endif %}
+    </button>
+    <button class="tab-btn" onclick="showTab('http', this)">
+        HTTP/S{% if http_flag_count %} <span class="badge badge-danger">{{ http_flag_count }}</span>{% endif %}
+    </button>
+    <button class="tab-btn" onclick="showTab('files', this)">
+        Files{% if mismatch_files %} <span class="badge badge-danger">{{ mismatch_files | length }}</span>{% endif %}
+    </button>
+    <button class="tab-btn" onclick="showTab('timeline', this)">Timeline</button>
+    <button class="tab-btn" onclick="showTab('mitre', this)">
+        MITRE ATT&amp;CK{% if mitre_count %} <span class="badge badge-danger">{{ mitre_count }}</span>{% endif %}
+    </button>
+</div>
+
+<div class="color-legend">
+    <span class="legend-item"><span class="dot dot-red"></span> Suspicious / Flagged</span>
+    <span class="legend-item"><span class="dot dot-orange"></span> Noteworthy</span>
+    <span class="legend-item"><span class="dot dot-blue"></span> Internal IP</span>
+    <span class="legend-item"><span class="dot dot-grey"></span> Low Priority</span>
+</div>
+
+{# ── OVERVIEW ── #}
+<div id="tab-overview" class="tab-panel active">
+    <div class="stat-grid">
+        <div class="stat-card"><div class="stat-value">{{ '{:,}'.format(ov.total_packets) }}</div><div class="stat-label">Total Packets</div></div>
+        <div class="stat-card"><div class="stat-value">{{ ov.duration_seconds | format_duration }}</div><div class="stat-label">Capture Duration</div></div>
+        <div class="stat-card"><div class="stat-value">{{ ov.total_bytes | format_bytes }}</div><div class="stat-label">Total Bytes</div></div>
+        <div class="stat-card"><div class="stat-value">{{ ov.unique_src_ips }}</div><div class="stat-label">Unique Src IPs</div></div>
+        <div class="stat-card"><div class="stat-value">{{ ov.unique_dst_ips }}</div><div class="stat-label">Unique Dst IPs</div></div>
+    </div>
+    <div class="card">
+        <div class="section-title">Protocol Breakdown</div>
+        {% if ov.protocol_breakdown %}
+        {% set max_count = ov.protocol_breakdown[0].count %}
+        <div class="bar-chart">
+            {% for item in ov.protocol_breakdown %}
+            <div class="bar-row">
+                <span class="bar-label">{{ item.protocol }}</span>
+                <div class="bar-track"><div class="bar-fill" style="width:{{ [((item.count / max_count) * 100) | round | int, 1] | max }}%"></div></div>
+                <span class="bar-count">{{ '{:,}'.format(item.count) }}</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">No protocol data</div>
+        {% endif %}
+    </div>
+</div>
+
+{# ── TOP TALKERS ── #}
+<div id="tab-talkers" class="tab-panel">
+    <div class="card">
+        <div class="section-title">Top Talkers by Packet Count</div>
+        {% if results.top_talkers %}
+        <table>
+            <thead><tr><th>#</th><th>Source IP</th><th>Destination IP</th><th>Packets</th><th>Bytes</th><th>Note</th></tr></thead>
+            <tbody>
+                {% for pair in results.top_talkers %}
+                <tr class="{{ 'tr-top5' if pair.is_top5 else '' }} {{ 'tr-egress' if pair.is_egress else '' }}">
+                    <td>{{ loop.index }}</td>
+                    <td class="{{ 'ip-int' if pair.src_internal else '' }}">{{ pair.src_ip }}</td>
+                    <td class="{{ 'ip-int' if pair.dst_internal else '' }}">{{ pair.dst_ip }}</td>
+                    <td>{{ '{:,}'.format(pair.packets) }}</td>
+                    <td>{{ pair.bytes | format_bytes }}</td>
+                    <td>{% if pair.is_egress %}<span class="egress-badge">↑ EGRESS</span>{% endif %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">No IP pairs found</div>
+        {% endif %}
+    </div>
+</div>
+
+{# ── PORTS ── #}
+<div id="tab-ports" class="tab-panel">
+    <div class="card">
+        <div class="section-title">Destination Ports</div>
+        {% if results.ports.ports or results.ports.ephemeral_total %}
+        <table>
+            <thead><tr><th>Port</th><th>Service</th><th>Packets</th></tr></thead>
+            <tbody>
+                {% for p in results.ports.ports %}
+                <tr{% if p.suspicious %} class="suspicious"{% endif %}>
+                    <td>{{ p.port }}</td><td>{{ p.service or '—' }}</td><td>{{ '{:,}'.format(p.count) }}</td>
+                </tr>
+                {% endfor %}
+                {% if results.ports.ephemeral_total %}
+                <tr class="noteworthy" id="ephemeral-summary-row">
+                    <td colspan="2">
+                        Ephemeral Ports (49152+)
+                        <button class="ephemeral-toggle-btn" id="ephemeral-toggle-btn" onclick="toggleEphemeral()">▼ Show detail</button>
+                    </td>
+                    <td>{{ '{:,}'.format(results.ports.ephemeral_total) }}</td>
+                </tr>
+                {% for ep in results.ports.ephemeral_ports %}
+                <tr class="ephemeral-detail low-priority" style="display:none;">
+                    <td>{{ ep.port }}</td><td>ephemeral</td><td>{{ '{:,}'.format(ep.count) }}</td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">No port data</div>
+        {% endif %}
+    </div>
+</div>
+
+{# ── DNS ── #}
+<div id="tab-dns" class="tab-panel">
+    <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(120px,1fr));margin-bottom:16px;">
+        <div class="stat-card">
+            <div class="stat-value">{{ results.dns.total_unique }}</div>
+            <div class="stat-label">Unique Domains</div>
+        </div>
+        <div class="stat-card dns-flagged-card" id="dns-flagged-card" onclick="toggleDnsSort()"
+             title="Click to sort flagged domains to top">
+            <div class="stat-value" style="color:var(--danger)">{{ results.dns.flagged_count }}</div>
+            <div class="stat-label" id="dns-sort-label">Flagged ↕</div>
+        </div>
+    </div>
+    <div class="card">
+        <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>DNS Queries</span>
+            {% if results.dns.queries %}
+            <input type="text" class="dns-search" id="dns-search" placeholder="Filter by domain…">
+            {% endif %}
+        </div>
+        {% if results.dns.queries %}
+        <table style="margin-top:12px;">
+            <thead>
+                <tr>
+                    <th class="sortable-th dns-th" data-sortcol="domain" onclick="sortDnsByColumn('domain')">Domain<span class="sort-arrow"> ↕</span></th>
+                    <th class="sortable-th dns-th" data-sortcol="count" onclick="sortDnsByColumn('count')">Count<span class="sort-arrow"> ↓</span></th>
+                    <th class="sortable-th dns-th" data-sortcol="firstseen" onclick="sortDnsByColumn('firstseen')">First Seen<span class="sort-arrow"> ↕</span></th>
+                    <th>Resolved IPs</th>
+                    <th class="sortable-th dns-th" data-sortcol="flags" onclick="sortDnsByColumn('flags')">Flags<span class="sort-arrow"> ↕</span></th>
+                </tr>
+            </thead>
+            <tbody id="dns-tbody">
+                {% for q in results.dns.queries %}
+                <tr data-flagged="{{ 'true' if q.flags else 'false' }}"
+                    data-count="{{ q.count }}"
+                    data-firstseen="{{ q.first_seen | round(3) }}"
+                    data-domain="{{ q.domain }}"
+                    {% if q.flags %}class="suspicious"{% endif %}>
+                    <td>{{ q.domain }}</td>
+                    <td>{{ q.count }}</td>
+                    <td style="white-space:nowrap;">{{ q.first_seen | format_rel_time }}</td>
+                    <td>
+                        {% if q.resolved_ips %}
+                            {% for ip in q.resolved_ips[:5] %}
+                            <span class="ip-int">{{ ip }}</span>{% if not loop.last %}, {% endif %}
+                            {% endfor %}
+                            {% if q.resolved_ips | length > 5 %}
+                            <span style="color:var(--muted);font-size:10px;"> +{{ q.resolved_ips | length - 5 }} more</span>
+                            {% endif %}
+                        {% else %}
+                            <span style="color:var(--muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td>{% for f in q.flags %}<span class="flag-tag">{{ f.label }}</span>{% endfor %}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">No DNS queries found</div>
+        {% endif %}
+    </div>
+</div>
+
+{# ── HTTP ── #}
+<div id="tab-http" class="tab-panel">
+    {% if results.http.cleartext_creds %}
+    <div class="cred-warning">
+        <div class="cred-warning-title">⚠ Cleartext Credentials Detected ({{ cred_count }})</div>
+        {% for cred in results.http.cleartext_creds %}
+        <div class="cred-item">{{ cred.host }}: {{ cred.decoded }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-value">{{ results.http.hosts | length }}</div><div class="stat-label">Unique Hosts</div></div>
+        <div class="stat-card"><div class="stat-value">{{ results.http.requests | length }}</div><div class="stat-label">HTTP Requests</div></div>
+        <div class="stat-card"><div class="stat-value">{{ results.http.user_agents | length }}</div><div class="stat-label">User Agents</div></div>
+        <div class="stat-card">
+            <div class="stat-value" style="{{ 'color:var(--danger)' if results.http.flagged_ua_count else '' }}">{{ results.http.flagged_ua_count }}</div>
+            <div class="stat-label">Flagged UAs</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="{{ 'color:var(--danger)' if results.http.bare_ip_count else '' }}">{{ results.http.bare_ip_count }}</div>
+            <div class="stat-label">Bare IP Requests</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" style="{{ 'color:var(--danger)' if results.http.ct_mismatch_count else '' }}">{{ results.http.ct_mismatch_count }}</div>
+            <div class="stat-label">Type Mismatches</div>
+        </div>
+    </div>
+
+    {% if results.http.requests %}
+    <div class="card" style="margin-bottom:16px;">
+        <div class="section-title">HTTP Requests</div>
+        <table>
+            <thead>
+                <tr><th>Method</th><th>Host</th><th>URI</th><th>Status</th><th>Content-Type</th><th>Size</th><th>Server</th></tr>
+            </thead>
+            <tbody>
+                {% for req in results.http.requests %}
+                <tr{% if req.bare_ip or req.ct_mismatch %} class="suspicious"{% endif %}>
+                    <td>{{ req.method }}</td>
+                    <td>{{ req.host }}{% if req.bare_ip %} <span class="flag-tag">Bare IP</span>{% endif %}</td>
+                    <td>{{ req.uri }}</td>
+                    <td>{{ req.status or '—' }}</td>
+                    <td>{{ req.content_type or '—' }}{% if req.ct_mismatch %} <span class="flag-tag">Type Mismatch</span>{% endif %}</td>
+                    <td style="white-space:nowrap;">{{ req.content_length or '—' }}</td>
+                    <td>{{ req.server or '—' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if results.http.user_agents %}
+    <div class="card">
+        <div class="section-title">User Agents</div>
+        <table>
+            <thead><tr><th>User Agent</th><th>Count</th></tr></thead>
+            <tbody>
+                {% for ua in results.http.user_agents %}
+                <tr{% if ua.suspicious %} class="suspicious"{% endif %}>
+                    <td>{{ ua.ua }}{% if ua.suspicious %} <span class="flag-tag">{{ ua.flag }}</span>{% endif %}</td>
+                    <td>{{ ua.count }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if not results.http.requests and not results.http.user_agents %}
+    <div class="card"><div class="empty-state">No HTTP traffic found</div></div>
+    {% endif %}
+</div>
+
+{# ── FILES ── #}
+<div id="tab-files" class="tab-panel">
+    <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr));margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-value">{{ files | length }}</div><div class="stat-label">Files Extracted</div></div>
+        <div class="stat-card">
+            <div class="stat-value" style="{{ 'color:var(--danger)' if mismatch_files else '' }}">{{ mismatch_files | length }}</div>
+            <div class="stat-label">Type Mismatches</div>
+        </div>
+    </div>
+    {% if files %}
+    <div class="card">
+        <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+            <span>Extracted Objects</span>
+            <select class="tl-filter" id="file-proto-filter" onchange="filterFilesByProto()">
+                <option value="">All Protocols</option>
+                <option value="HTTP">HTTP</option>
+                <option value="SMB">SMB</option>
+                <option value="FTP">FTP</option>
+            </select>
+        </div>
+        <table style="margin-top:12px;">
+            <thead><tr><th>Protocol</th><th>Filename</th><th>Source</th><th>Size</th><th>Declared Type</th><th>Actual Type</th><th></th></tr></thead>
+            <tbody id="files-tbody">
+                {% for f in files %}
+                <tr data-protocol="{{ f.protocol }}"{% if f.type_mismatch %} class="suspicious"{% endif %}>
+                    <td><span class="proto-badge proto-{{ f.protocol | lower }}">{{ f.protocol }}</span></td>
+                    <td>{{ f.filename }}{% if f.type_mismatch %} <span class="flag-tag">Type Mismatch</span>{% endif %}</td>
+                    <td>{{ f.source or '—' }}</td>
+                    <td style="white-space:nowrap;">{{ f.size | format_bytes }}</td>
+                    <td>{{ f.declared_type }}</td>
+                    <td>{{ f.actual_type }}</td>
+                    <td><button class="ephemeral-toggle-btn" onclick="toggleFileDetail({{ loop.index0 }})">Hashes ▼</button></td>
+                </tr>
+                <tr id="file-detail-{{ loop.index0 }}" data-protocol="{{ f.protocol }}" style="display:none;" class="low-priority">
+                    <td colspan="7" style="padding:10px 12px;">
+                        <div class="hash-row"><span class="hash-label">MD5</span><span class="copy-hash" onclick="copyHash('{{ f.md5 }}', this)" title="Click to copy">{{ f.md5 }}</span></div>
+                        <div class="hash-row"><span class="hash-label">SHA1</span><span class="copy-hash" onclick="copyHash('{{ f.sha1 }}', this)" title="Click to copy">{{ f.sha1 }}</span></div>
+                        <div class="hash-row" style="margin-bottom:0;"><span class="hash-label">SHA256</span><span class="copy-hash" onclick="copyHash('{{ f.sha256 }}', this)" title="Click to copy">{{ f.sha256 }}</span></div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card"><div class="empty-state">No files extracted — no HTTP, SMB, or FTP objects found in capture</div></div>
+    {% endif %}
+</div>
+
+{# ── TIMELINE ── #}
+<div id="tab-timeline" class="tab-panel">
+    {% if timeline_events %}
+    <div class="card" style="margin-bottom:16px;">
+        <div class="section-title">Capture Timeline</div>
+
+        {# Horizontal timeline bar — markers injected by JS #}
+        <div class="tl-bar-wrap">
+            <div class="tl-bar-inner" id="tl-bar"></div>
+        </div>
+        <div class="tl-bar-labels">
+            <span>0s</span>
+            <span>{{ ov.duration_seconds | format_duration }}</span>
+        </div>
+
+        <div class="tl-controls">
+            <label style="font-size:12px;color:var(--muted);">Filter:</label>
+            <select class="tl-filter" id="tl-filter" onchange="filterTimeline()">
+                <option value="">All</option>
+                <option value="dns">DNS</option>
+                <option value="http">HTTP</option>
+                <option value="files">Files</option>
+                <option value="suspicious">Suspicious</option>
+                <option value="mitre">MITRE</option>
+            </select>
+            <span style="font-size:11px;color:var(--muted);" id="tl-count-label">{{ timeline_events | length }} events</span>
+        </div>
+
+        <div style="max-height:420px;overflow-y:auto;">
+        <table>
+            <thead><tr><th>Timestamp</th><th>Category</th><th>Summary</th></tr></thead>
+            <tbody id="tl-tbody">
+                {% for ev in timeline_events %}
+                <tr id="tl-row-{{ loop.index0 }}"
+                    data-category="{{ ev.category }}"
+                    data-idx="{{ loop.index0 }}"
+                    onclick="selectTlRow({{ loop.index0 }})">
+                    <td style="white-space:nowrap;">{{ ev.timestamp | format_rel_time }}</td>
+                    <td><span class="cat-badge cat-{{ ev.category }}">{{ ev.category }}</span></td>
+                    <td>{{ ev.summary }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+    {% else %}
+    <div class="card"><div class="empty-state">No timeline events generated</div></div>
+    {% endif %}
+</div>
+
+{# ── MITRE ── #}
+<div id="tab-mitre" class="tab-panel">
+    {% if results.mitre %}
+    <div class="mitre-grid">
+        {% for t in results.mitre %}
+        <div class="mitre-card">
+            <div class="mitre-header">
+                <div class="mitre-id"><a href="{{ t.url }}" target="_blank" rel="noopener">{{ t.id }}</a></div>
+                <span class="mitre-indicator-count">{{ t.evidence | length }} indicator{{ 's' if t.evidence | length != 1 else '' }}</span>
+            </div>
+            <div class="mitre-name">{{ t.name }}</div>
+            {% if t.evidence %}
+            <table class="mitre-ev-table">
+                <thead><tr><th>Indicator</th><th>Type</th><th>Value</th></tr></thead>
+                <tbody>
+                    {% for ev in t.evidence %}
+                    <tr><td>{{ ev.indicator }}</td><td>{{ ev.flag_type }}</td><td>{{ ev.value }}</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card"><div class="empty-state">No MITRE ATT&CK indicators detected</div></div>
+    {% endif %}
+</div>
+
+<script>
+// ── Tab switching ──────────────────────────────────────────────────────────
+function showTab(name, btn) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    btn.classList.add('active');
+}
+
+// ── IOC export dropdown ────────────────────────────────────────────────────
+function toggleIocMenu(e) {
+    e.stopPropagation();
+    const dd = document.getElementById('ioc-dropdown');
+    dd.style.display = dd.style.display === 'none' ? 'block' : 'none';
+}
+document.addEventListener('click', function(e) {
+    const wrap = document.getElementById('ioc-btn-wrap');
+    if (wrap && !wrap.contains(e.target)) {
+        const dd = document.getElementById('ioc-dropdown');
+        if (dd) dd.style.display = 'none';
+    }
+});
+
+// ── Ephemeral ports expand/collapse ───────────────────────────────────────
+function toggleEphemeral() {
+    const rows = document.querySelectorAll('.ephemeral-detail');
+    const isHidden = rows.length > 0 && rows[0].style.display === 'none';
+    rows.forEach(r => r.style.display = isHidden ? '' : 'none');
+    const btn = document.getElementById('ephemeral-toggle-btn');
+    btn.textContent = isHidden ? '▲ Hide detail' : '▼ Show detail';
+}
+
+// ── File hash detail toggle ────────────────────────────────────────────────
+function toggleFileDetail(idx) {
+    const row = document.getElementById('file-detail-' + idx);
+    if (!row) return;
+    const isHidden = row.style.display === 'none';
+    row.style.display = isHidden ? '' : 'none';
+    const btn = row.previousElementSibling?.querySelector('.ephemeral-toggle-btn');
+    if (btn) btn.textContent = isHidden ? 'Hashes ▲' : 'Hashes ▼';
+}
+
+function copyHash(hash, el) {
+    navigator.clipboard.writeText(hash).then(() => {
+        const orig = el.textContent;
+        el.textContent = 'Copied!';
+        el.style.color = 'var(--accent)';
+        setTimeout(() => { el.textContent = orig; el.style.color = ''; }, 1500);
+    });
+}
+
+// ── File protocol filter ──────────────────────────────────────────────────
+function filterFilesByProto() {
+    const filter = document.getElementById('file-proto-filter').value;
+    document.querySelectorAll('#files-tbody tr[data-protocol]').forEach(row => {
+        const match = !filter || row.dataset.protocol === filter;
+        if (row.id && row.id.startsWith('file-detail-')) {
+            row.style.display = 'none'; // collapse all detail rows on filter change
+        } else {
+            row.style.display = match ? '' : 'none';
+        }
+    });
+    document.querySelectorAll('#files-tbody .ephemeral-toggle-btn').forEach(btn => {
+        btn.textContent = 'Hashes ▼';
+    });
+}
+
+// ── DNS search / sort ──────────────────────────────────────────────────────
+const dnsSearch = document.getElementById('dns-search');
+if (dnsSearch) {
+    dnsSearch.addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('#dns-tbody tr').forEach(row => {
+            const domain = (row.dataset.domain || '').toLowerCase();
+            row.style.display = (!q || domain.includes(q)) ? '' : 'none';
+        });
+    });
+}
+
+let dnsCurrentSort = { col: 'count', dir: 'desc' };
+
+function sortDnsByColumn(col) {
+    if (dnsCurrentSort.col === col) {
+        dnsCurrentSort.dir = dnsCurrentSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+        dnsCurrentSort.col = col;
+        dnsCurrentSort.dir = (col === 'firstseen' || col === 'domain') ? 'asc' : 'desc';
+    }
+    applyDnsSort();
+    updateDnsSortUI();
+}
+
+function applyDnsSort() {
+    const tbody = document.getElementById('dns-tbody');
+    if (!tbody) return;
+    const rows = Array.from(tbody.querySelectorAll('tr[data-count]'));
+    const { col, dir } = dnsCurrentSort;
+    const mult = dir === 'asc' ? 1 : -1;
+    rows.sort((a, b) => {
+        if (col === 'count')     return mult * (parseInt(a.dataset.count || 0) - parseInt(b.dataset.count || 0));
+        if (col === 'firstseen') return mult * (parseFloat(a.dataset.firstseen || 0) - parseFloat(b.dataset.firstseen || 0));
+        if (col === 'flags') {
+            const af = a.dataset.flagged === 'true' ? 0 : 1;
+            const bf = b.dataset.flagged === 'true' ? 0 : 1;
+            if (af !== bf) return mult * (af - bf);
+            return -(parseInt(a.dataset.count || 0) - parseInt(b.dataset.count || 0));
+        }
+        if (col === 'domain') return mult * ((a.dataset.domain || '').localeCompare(b.dataset.domain || ''));
+        return 0;
+    });
+    rows.forEach(r => tbody.appendChild(r));
+}
+
+function updateDnsSortUI() {
+    document.querySelectorAll('.dns-th').forEach(th => {
+        const col = th.dataset.sortcol;
+        const arrow = th.querySelector('.sort-arrow');
+        if (arrow) arrow.textContent = col === dnsCurrentSort.col ? (dnsCurrentSort.dir === 'asc' ? ' ↑' : ' ↓') : ' ↕';
+    });
+    const card = document.getElementById('dns-flagged-card');
+    const label = document.getElementById('dns-sort-label');
+    if (dnsCurrentSort.col === 'flags') {
+        card?.classList.add('sort-active');
+        if (label) label.textContent = dnsCurrentSort.dir === 'desc' ? 'Flagged first ✓' : 'Flagged last';
+    } else {
+        card?.classList.remove('sort-active');
+        if (label) label.textContent = 'Flagged ↕';
+    }
+}
+
+function toggleDnsSort() { sortDnsByColumn('flags'); }
+
+// ── Timeline ───────────────────────────────────────────────────────────────
+const tlEvents = {{ results.timeline | tojson }};
+const tlDuration = {{ ov.duration_seconds | default(0) }};
+
+(function buildTimeline() {
+    const bar = document.getElementById('tl-bar');
+    if (!bar || !tlEvents.length) return;
+
+    tlEvents.forEach((ev, idx) => {
+        const pct = tlDuration > 0 ? Math.min((ev.timestamp / tlDuration) * 100, 99.5) : 0;
+        const m = document.createElement('div');
+        m.className = 'tl-marker';
+        // colour by category
+        if (ev.severity === 'suspicious') m.classList.add('tl-suspicious');
+        else if (ev.category === 'files')  m.classList.add('tl-files');
+        else if (ev.category === 'mitre')  m.classList.add('tl-mitre');
+        else                               m.classList.add('tl-normal');
+        m.style.left = pct + '%';
+        m.dataset.idx = idx;
+        m.title = ev.summary;
+        m.onclick = () => selectTlRow(idx);
+        bar.appendChild(m);
+    });
+})();
+
+function selectTlRow(idx) {
+    document.querySelectorAll('#tl-tbody tr').forEach(r => r.classList.remove('tl-highlight'));
+    document.querySelectorAll('.tl-marker').forEach(m => m.classList.remove('active'));
+    const row = document.getElementById('tl-row-' + idx);
+    if (row) { row.classList.add('tl-highlight'); row.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+    const marker = document.querySelector(`.tl-marker[data-idx="${idx}"]`);
+    if (marker) marker.classList.add('active');
+}
+
+function filterTimeline() {
+    const filter = document.getElementById('tl-filter').value;
+    let visible = 0;
+    document.querySelectorAll('#tl-tbody tr').forEach(row => {
+        const show = !filter || row.dataset.category === filter;
+        row.style.display = show ? '' : 'none';
+        if (show) visible++;
+    });
+    document.querySelectorAll('.tl-marker').forEach(m => {
+        const idx = parseInt(m.dataset.idx);
+        const ev = tlEvents[idx];
+        m.style.display = (!filter || ev.category === filter) ? '' : 'none';
+    });
+    const lbl = document.getElementById('tl-count-label');
+    if (lbl) lbl.textContent = visible + ' event' + (visible !== 1 ? 's' : '');
+}
+</script>
+{% endblock %}
