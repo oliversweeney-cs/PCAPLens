@@ -85,16 +85,18 @@
     .bar-count { font-family: monospace; font-size: 12px; color: var(--muted); }
 
     /* ── mitre ── */
-    .mitre-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 16px; }
+    .mitre-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(520px, 1fr)); gap: 16px; max-width: 1400px; }
     .mitre-card { background: var(--surface2); border: 1px solid rgba(248,81,73,0.35); border-radius: 6px; padding: 16px; }
     .mitre-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
     .mitre-id a { font-family: monospace; font-size: 12px; color: var(--danger); font-weight: 700; }
     .mitre-indicator-count { font-size: 11px; color: var(--muted); }
     .mitre-name { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
-    .mitre-ev-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .mitre-ev-table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
     .mitre-ev-table th { background: rgba(0,0,0,0.2); color: var(--muted); text-transform: uppercase; font-size: 10px; letter-spacing: 0.4px; padding: 5px 8px; text-align: left; border-bottom: 1px solid var(--border); }
-    .mitre-ev-table td { padding: 4px 8px; border-bottom: 1px solid rgba(48,54,61,0.5); font-family: 'Cascadia Code','Fira Code','Consolas',monospace; word-break: break-all; color: var(--muted); }
+    .mitre-ev-table td { padding: 4px 8px; border-bottom: 1px solid rgba(48,54,61,0.5); color: var(--muted); vertical-align: top; }
+    .mitre-ev-table td:first-child { font-family: monospace; word-break: break-all; }
     .mitre-ev-table tr:last-child td { border-bottom: none; }
+    .mitre-ev-wrap { max-height: 320px; overflow-y: auto; }
 
     /* ── cred warning ── */
     .cred-warning { background: rgba(248,81,73,0.08); border: 1px solid rgba(248,81,73,0.35); border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; }
@@ -493,7 +495,11 @@
             </thead>
             <tbody id="tls-tbody">
                 {% for s in tls.sessions %}
-                <tr{% if s.flags %} class="suspicious"{% endif %}>
+                {% set ns = namespace(has_red=false) %}
+                {% for f in s.flags %}
+                  {% if f == 'No SNI' or f.startswith('Malicious') %}{% set ns.has_red = true %}{% endif %}
+                {% endfor %}
+                <tr{% if ns.has_red %} class="suspicious"{% elif s.flags %} class="noteworthy"{% endif %}>
                     <td class="{{ 'ip-int' if s.src_internal else '' }}">{{ s.src_ip }}</td>
                     <td class="{{ 'ip-int' if s.dst_internal else '' }}">{{ s.dst_ip }}</td>
                     <td>{{ s.dst_port }}</td>
@@ -665,7 +671,9 @@
             </div>
             <div class="mitre-name">{{ t.name }}</div>
             {% if t.evidence %}
+            <div class="mitre-ev-wrap">
             <table class="mitre-ev-table">
+                <colgroup><col style="width:60%"><col style="width:15%"><col style="width:25%"></colgroup>
                 <thead><tr><th>Indicator</th><th>Type</th><th>Value</th></tr></thead>
                 <tbody>
                     {% for ev in t.evidence %}
@@ -673,6 +681,7 @@
                     {% endfor %}
                 </tbody>
             </table>
+            </div>
             {% endif %}
         </div>
         {% endfor %}
