@@ -787,7 +787,7 @@ function sortDnsByColumn(col) {
         dnsCurrentSort.dir = dnsCurrentSort.dir === 'asc' ? 'desc' : 'asc';
     } else {
         dnsCurrentSort.col = col;
-        dnsCurrentSort.dir = (col === 'firstseen' || col === 'domain') ? 'asc' : 'desc';
+        dnsCurrentSort.dir = (col === 'firstseen' || col === 'domain' || col === 'flags') ? 'asc' : 'desc';
     }
     applyDnsSort();
     updateDnsSortUI();
@@ -824,7 +824,7 @@ function updateDnsSortUI() {
     const label = document.getElementById('dns-sort-label');
     if (dnsCurrentSort.col === 'flags') {
         card?.classList.add('sort-active');
-        if (label) label.textContent = dnsCurrentSort.dir === 'desc' ? 'Flagged first ✓' : 'Flagged last';
+        if (label) label.textContent = dnsCurrentSort.dir === 'asc' ? 'Flagged first ✓' : 'Flagged last';
     } else {
         card?.classList.remove('sort-active');
         if (label) label.textContent = 'Flagged ↕';
