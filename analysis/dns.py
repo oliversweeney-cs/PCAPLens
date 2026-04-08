@@ -108,6 +108,7 @@ def analyse_dns(packets, pcap_path=None):
                 'flags': _flag_domain(key),
                 'first_seen': float('inf'),
                 'resolved_ips': [],
+                'source_ips': [],
             }
 
         if is_response:
@@ -119,6 +120,9 @@ def analyse_dns(packets, pcap_path=None):
             rel_time = p['timestamp'] - capture_start
             if rel_time < queries[key]['first_seen']:
                 queries[key]['first_seen'] = rel_time
+            src_ip = p.get('src_ip')
+            if src_ip and src_ip not in queries[key]['source_ips']:
+                queries[key]['source_ips'].append(src_ip)
 
     # Use tshark as the authoritative source for resolved IPs
     if pcap_path:

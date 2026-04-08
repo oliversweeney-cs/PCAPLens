@@ -1,5 +1,5 @@
 from .parser import parse_pcap
-from .overview import analyse_overview
+from .overview import analyse_overview, compute_top_external_destinations
 from .top_talkers import analyse_top_talkers
 from .ports import analyse_ports
 from .dns import analyse_dns
@@ -21,6 +21,7 @@ def run_analysis(filepath):
         'files': extract_files(filepath),
         'tls': analyse_tls(filepath),
     }
+    results['overview']['top_external_destinations'] = compute_top_external_destinations(packets, results)
     results['mitre'] = analyse_mitre(results)
     results['timeline'] = build_timeline(results)
     return results

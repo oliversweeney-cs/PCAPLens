@@ -15,6 +15,7 @@ def analyse_mitre(results):
     _check_ftp_files(results, triggered)
     _check_tls_malicious_ja3(results, triggered)
     _check_tls_nonstandard_port(results, triggered)
+    _check_cleartext_protocols(results, triggered)
     return list(triggered.values())
 
 
@@ -207,6 +208,21 @@ def _check_tls_nonstandard_port(results, triggered):
             'flag_type': 'TLS Non-Standard Port',
             'value': f"TLS to {s['sni'] or s['dst_ip']}:{s['dst_port']}",
         })
+
+
+def _check_cleartext_protocols(results, triggered):
+    cleartext = results.get('ports', {}).get('cleartext_ports', [])
+    if cleartext:
+        t = _technique('T1040')
+        t['evidence'] = [
+            {
+                'indicator': str(cp['port']),
+                'flag_type': 'Cleartext Protocol',
+                'value': f"{cp['protocol']} ({cp['count']} packets)",
+            }
+            for cp in cleartext
+        ]
+        triggered['T1040'] = t
 
 
 def _technique(technique_id):

@@ -16,11 +16,13 @@ Wireshark is powerful but manual and time-consuming for triage. PCAPLens automat
 - **Protocol breakdown** — Packet counts and byte volume per protocol with visual bar charts
 - **Top talker identification** — IP pair ranking with RFC 1918 internal IP detection and egress traffic flagging
 - **Suspicious port detection** — Flags known suspicious ports (4444, 1337, 31337, 9001, 6667, etc.) with ephemeral port collapsing for noise reduction
-- **DNS analysis** — Shannon entropy scoring for DGA detection, long subdomain flagging, bad TLD detection (.tk, .xyz, .pw, etc.), resolved IP extraction via tshark fallback, and sortable column headers
+- **Triage-first Overview** — Findings at a Glance cards showing flagged counts across all modules (DNS, HTTP, TLS, cleartext, files, MITRE) with click-to-navigate, top external destinations with flagged IP indicators, and protocol ratio alerts for anomalies like DNS tunnelling
+- **Cleartext protocol detection** — Flags unencrypted protocols (FTP, Telnet, SMTP, POP3, IMAP, TFTP, SNMP, SMB, NetBIOS) with amber badges and MITRE T1040 mapping
+- **DNS analysis** — Shannon entropy scoring for DGA detection, long subdomain flagging, bad TLD detection (.tk, .xyz, .pw, etc.), resolved IP extraction via tshark fallback, sortable column headers, and per-domain source IP tracking to identify multi-host queries
 - **HTTP/S request inspection** — Response header correlation (status, Content-Type, Server), flagged user agents (PowerShell, curl, wget, python-requests, go-http-client), bare IP host detection, and Content-Type mismatch flagging
 - **TLS/JA3 fingerprinting** — Extracts JA3/JA3S hashes from TLS handshakes, flags known malicious C2 fingerprints (Cobalt Strike, Sliver, Meterpreter, etc.), identifies scripting tool clients (PowerShell, curl, Python), detects missing SNI, rare JA3 hashes, non-standard ports, and legacy TLS versions
 - **Multi-protocol file extraction** — Extracts objects from HTTP, SMB, and FTP streams via tshark with magic byte detection, MD5/SHA1/SHA256 hashing, type mismatch flagging, and protocol filter dropdown
-- **MITRE ATT&CK mapping** — Ten technique detections with structured evidence tables showing indicators, types, and values
+- **MITRE ATT&CK mapping** — Eleven technique detections with structured evidence tables showing indicators, types, and values
 - **Event timeline** — Chronological view of security-relevant events with a colour-coded horizontal timeline bar, clickable markers, and category filtering (DNS, HTTP, TLS, Files, Suspicious, MITRE)
 - **IOC export** — One-click export of actionable indicators (domains, IPs, hashes, JA3 fingerprints, user agents, MITRE techniques) in CSV or structured JSON format with base domain deduplication for DNS tunnelling indicators
 - **Multiple report formats** — Full JSON export, self-contained HTML report (inline CSS, no external dependencies), and IOC bundles
@@ -66,7 +68,7 @@ Open [http://localhost:8889](http://localhost:8889) in your browser.
 
 1. Navigate to the upload page at `http://localhost:8889`
 2. Drag and drop a `.pcap` or `.pcapng` file (or click to browse)
-3. Review the analysis dashboard across 8 tabs
+3. Review the analysis dashboard across 9 tabs
 4. Key things to look for:
    - Flagged DNS domains (high entropy, long subdomains, bad TLDs)
    - Suspicious port activity (Metasploit, IRC, Tor)
@@ -89,6 +91,7 @@ Open [http://localhost:8889](http://localhost:8889) in your browser.
 | T1021.002 | Remote Services: SMB/Windows Admin Shares | Executable files (PE/ELF/Mach-O) transferred via SMB |
 | T1071.002 | Application Layer Protocol: File Transfer Protocols | Files transferred via FTP data streams |
 | T1573.001 | Encrypted Channel: Symmetric Cryptography | TLS Client Hello JA3 hash matches known C2/malware fingerprint |
+| T1040 | Network Sniffing | Cleartext protocols detected (FTP, Telnet, SMTP, POP3, IMAP, etc.) |
 
 ## Project Structure
 

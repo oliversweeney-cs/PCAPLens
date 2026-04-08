@@ -72,6 +72,22 @@ def build_timeline(results):
                 'severity': 'suspicious',
             })
 
+    # Cleartext protocol events (one per protocol)
+    for cp in results.get('ports', {}).get('cleartext_ports', []):
+        # Use first_seen of the matching well-known port entry
+        ts = 0.0
+        for p in results.get('ports', {}).get('ports', []):
+            if p['port'] == cp['port']:
+                ts = p.get('first_seen', 0.0)
+                break
+        summary = f"Cleartext protocol detected: {cp['protocol']} on port {cp['port']}"
+        events.append({
+            'timestamp': ts,
+            'category': 'suspicious',
+            'summary': summary,
+            'severity': 'normal',
+        })
+
     # Flagged user agent events (first seen)
     for ua in results.get('http', {}).get('user_agents', []):
         if ua.get('suspicious'):
@@ -169,6 +185,16 @@ def _mitre_earliest_timestamp(tech_id, results):
         malicious = [s for s in results.get('tls', {}).get('sessions', [])
                      if any('Malicious JA3' in f for f in s.get('flags', []))]
         times = [s.get('timestamp', 0.0) for s in malicious]
+        return min(times) if times else 0.0
+
+    if tech_id == 'T1040':
+        cleartext = results.get('ports', {}).get('cleartext_ports', [])
+        times = []
+        for cp in cleartext:
+            for p in results.get('ports', {}).get('ports', []):
+                if p['port'] == cp['port']:
+                    times.append(p.get('first_seen', 0.0))
+                    break
         return min(times) if times else 0.0
 
     return 0.0

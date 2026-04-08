@@ -1,5 +1,17 @@
 SUSPICIOUS_PORTS = {4444, 1337, 31337, 9001, 9030, 6667, 4899}
 
+CLEARTEXT_PROTOCOLS = {
+    21: 'FTP',
+    23: 'Telnet',
+    25: 'SMTP',
+    110: 'POP3',
+    143: 'IMAP',
+    69: 'TFTP',
+    161: 'SNMP',
+    445: 'SMB',
+    139: 'NetBIOS',
+}
+
 PORT_LABELS = {
     20: 'FTP Data', 21: 'FTP', 22: 'SSH', 23: 'Telnet',
     25: 'SMTP', 53: 'DNS', 67: 'DHCP', 68: 'DHCP',
@@ -230,5 +242,11 @@ MITRE_TECHNIQUES = [
         'name': 'Encrypted Channel: Symmetric Cryptography',
         'url': 'https://attack.mitre.org/techniques/T1573/001',
         'trigger': 'tls_malicious_ja3',
+    },
+    {
+        'id': 'T1040',
+        'name': 'Network Sniffing',
+        'url': 'https://attack.mitre.org/techniques/T1040',
+        'trigger': 'cleartext_protocols',
     },
 ]

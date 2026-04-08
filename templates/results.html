@@ -124,6 +124,20 @@
         margin-left: 8px; transition: color 0.15s, border-color 0.15s;
     }
     .ephemeral-toggle-btn:hover { color: var(--warning); border-color: var(--warning); }
+    .cleartext-badge {
+        display: inline-block; font-size: 10px; font-weight: 600; letter-spacing: 0.3px;
+        color: var(--warning); border: 1px solid rgba(227,179,65,0.4);
+        border-radius: 3px; padding: 1px 4px; margin-left: 4px; vertical-align: middle;
+        background: rgba(227,179,65,0.08);
+    }
+    .dns-sources-toggle {
+        color: var(--accent); cursor: pointer; font-size: 11px; font-family: monospace;
+    }
+    .dns-sources-toggle:hover { text-decoration: underline; }
+    .dns-sources-list {
+        display: none; margin-top: 4px; font-size: 11px; color: var(--muted); font-family: monospace;
+    }
+    .dns-sources-list.expanded { display: block; }
     .copy-hash {
         font-family: 'Cascadia Code','Fira Code','Consolas',monospace;
         font-size: 11px; cursor: pointer; color: var(--muted);
@@ -179,6 +193,39 @@
     .cat-tls     { background: rgba(163,113,247,0.12); color: #a371f7; border: 1px solid rgba(163,113,247,0.3); }
     .cat-mitre   { background: rgba(227,179,65,0.12); color: var(--warning); border: 1px solid rgba(227,179,65,0.3); }
     tr.tl-highlight td { background: rgba(56,139,253,0.08) !important; }
+
+    /* ── Overview: Findings at a Glance ── */
+    .findings-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 10px; margin-bottom: 20px;
+    }
+    .finding-card {
+        background: var(--surface2); border: 1px solid var(--border); border-radius: 6px;
+        padding: 10px 12px; text-align: center; cursor: pointer;
+        transition: border-color 0.15s, background 0.15s;
+    }
+    .finding-card:hover { border-color: var(--accent); background: var(--surface); }
+    .finding-value { font-size: 20px; font-weight: 700; font-family: monospace; }
+    .finding-label { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .findings-clear {
+        background: rgba(63,185,80,0.08); border: 1px solid rgba(63,185,80,0.3);
+        border-radius: 6px; padding: 12px 16px; color: var(--success);
+        font-size: 13px; font-weight: 500; text-align: center; margin-bottom: 20px;
+    }
+
+    /* ── Overview: Top External Destinations ── */
+    .ext-dot-red {
+        display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+        background: var(--danger); margin-right: 5px; vertical-align: middle;
+    }
+
+    /* ── Overview: Ratio Alerts ── */
+    .ratio-alert {
+        display: flex; align-items: center; gap: 8px; padding: 8px 14px;
+        background: rgba(227,179,65,0.06); border: 1px solid rgba(227,179,65,0.3);
+        border-radius: 6px; font-size: 12px; color: var(--warning); margin-top: 12px;
+    }
+    .ratio-alert-icon { font-weight: 700; font-size: 14px; flex-shrink: 0; }
 </style>
 {% endblock %}
 
@@ -192,6 +239,11 @@
 {% set files = results.files %}
 {% set mismatch_files = files | selectattr('type_mismatch') | list %}
 {% set timeline_events = results.timeline %}
+{% set cleartext_count = results.ports.cleartext_ports | length %}
+{% set tls_flagged = results.tls.stats.flagged_count if results.tls and results.tls.stats else 0 %}
+{% set http_flagged = results.http.flagged_ua_count + results.http.bare_ip_count if results.http else 0 %}
+{% set mismatch_count = mismatch_files | length %}
+{% set findings_total = dns_flagged + http_flagged + tls_flagged + cleartext_count + mismatch_count + mitre_count %}
 
 <div class="results-header">
     <div>
@@ -251,6 +303,64 @@
         <div class="stat-card"><div class="stat-value">{{ ov.unique_src_ips }}</div><div class="stat-label">Unique Src IPs</div></div>
         <div class="stat-card"><div class="stat-value">{{ ov.unique_dst_ips }}</div><div class="stat-label">Unique Dst IPs</div></div>
     </div>
+
+    {# ── Findings at a Glance ── #}
+    <div class="card" style="margin-bottom:20px;">
+        <div class="section-title">Findings at a Glance</div>
+        {% if findings_total > 0 %}
+        <div class="findings-grid">
+            <div class="finding-card" onclick="switchTab('dns')">
+                <div class="finding-value" style="color:{{ 'var(--danger)' if dns_flagged else 'var(--muted)' }}">{{ dns_flagged }}</div>
+                <div class="finding-label">Flagged DNS Domains</div>
+            </div>
+            <div class="finding-card" onclick="switchTab('http')">
+                <div class="finding-value" style="color:{{ 'var(--danger)' if http_flagged else 'var(--muted)' }}">{{ http_flagged }}</div>
+                <div class="finding-label">Flagged HTTP Sessions</div>
+            </div>
+            <div class="finding-card" onclick="switchTab('tls')">
+                <div class="finding-value" style="color:{{ 'var(--danger)' if tls_flagged else 'var(--muted)' }}">{{ tls_flagged }}</div>
+                <div class="finding-label">Flagged TLS Sessions</div>
+            </div>
+            <div class="finding-card" onclick="switchTab('ports')">
+                <div class="finding-value" style="color:{{ 'var(--danger)' if cleartext_count else 'var(--muted)' }}">{{ cleartext_count }}</div>
+                <div class="finding-label">Cleartext Protocols</div>
+            </div>
+            <div class="finding-card" onclick="switchTab('files')">
+                <div class="finding-value" style="color:{{ 'var(--danger)' if mismatch_count else 'var(--muted)' }}">{{ mismatch_count }}</div>
+                <div class="finding-label">File Type Mismatches</div>
+            </div>
+            <div class="finding-card" onclick="switchTab('mitre')">
+                <div class="finding-value" style="color:{{ 'var(--danger)' if mitre_count else 'var(--muted)' }}">{{ mitre_count }}</div>
+                <div class="finding-label">MITRE Techniques</div>
+            </div>
+        </div>
+        {% else %}
+        <div class="findings-clear">No suspicious findings</div>
+        {% endif %}
+    </div>
+
+    {# ── Top External Destinations ── #}
+    <div class="card" style="margin-bottom:20px;">
+        <div class="section-title">Top External Destinations</div>
+        {% if ov.top_external_destinations %}
+        <table style="margin-top:12px;">
+            <thead><tr><th>Destination IP</th><th>Packets</th><th>Bytes</th><th>Ports Used</th></tr></thead>
+            <tbody>
+                {% for d in ov.top_external_destinations %}
+                <tr>
+                    <td>{% if d.flagged %}<span class="ext-dot-red"></span>{% endif %}{{ d.ip }}</td>
+                    <td>{{ '{:,}'.format(d.packets) }}</td>
+                    <td>{{ d.bytes | format_bytes }}</td>
+                    <td style="font-family:monospace;font-size:12px;color:var(--muted);">{{ d.ports | join(', ') }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+        <div class="empty-state">No external destinations detected</div>
+        {% endif %}
+    </div>
+
     <div class="card">
         <div class="section-title">Protocol Breakdown</div>
         {% if ov.protocol_breakdown %}
@@ -264,6 +374,32 @@
             </div>
             {% endfor %}
         </div>
+
+        {# ── Protocol Ratio Alerts ── #}
+        {% set ns = namespace(alerts=[]) %}
+        {% for item in ov.protocol_breakdown %}
+            {% if item.protocol == 'DNS' and ov.total_packets > 0 %}
+                {% set dns_pct = ((item.count / ov.total_packets) * 100) | round(1) %}
+                {% if dns_pct > 50 %}
+                    {% set ns.alerts = ns.alerts + ['DNS makes up ' ~ dns_pct ~ '% of traffic — may indicate DNS tunnelling. Check the DNS tab.'] %}
+                {% endif %}
+            {% endif %}
+        {% endfor %}
+        {% if ov.top_external_destinations and ov.total_packets > 0 %}
+            {% for d in ov.top_external_destinations[:1] %}
+                {% set ip_pct = ((d.packets / ov.total_packets) * 100) | round(1) %}
+                {% if ip_pct > 40 %}
+                    {% set ns.alerts = ns.alerts + [d.ip ~ ' received ' ~ ip_pct ~ '% of all traffic — check Top Talkers for details.'] %}
+                {% endif %}
+            {% endfor %}
+        {% endif %}
+        {% for alert in ns.alerts %}
+        <div class="ratio-alert">
+            <span class="ratio-alert-icon">!</span>
+            <span>{{ alert }}</span>
+        </div>
+        {% endfor %}
+
         {% else %}
         <div class="empty-state">No protocol data</div>
         {% endif %}
@@ -305,8 +441,8 @@
             <thead><tr><th>Port</th><th>Service</th><th>Packets</th></tr></thead>
             <tbody>
                 {% for p in results.ports.ports %}
-                <tr{% if p.suspicious %} class="suspicious"{% endif %}>
-                    <td>{{ p.port }}</td><td>{{ p.service or '—' }}</td><td>{{ '{:,}'.format(p.count) }}</td>
+                <tr{% if p.suspicious %} class="suspicious"{% elif p.cleartext %} class="noteworthy"{% endif %}>
+                    <td>{{ p.port }}</td><td>{{ p.service or '—' }}{% if p.cleartext %}<span class="cleartext-badge">Cleartext</span>{% endif %}</td><td>{{ '{:,}'.format(p.count) }}</td>
                 </tr>
                 {% endfor %}
                 {% if results.ports.ephemeral_total %}
@@ -359,6 +495,7 @@
                     <th class="sortable-th dns-th" data-sortcol="count" onclick="sortDnsByColumn('count')">Count<span class="sort-arrow"> ↓</span></th>
                     <th class="sortable-th dns-th" data-sortcol="firstseen" onclick="sortDnsByColumn('firstseen')">First Seen<span class="sort-arrow"> ↕</span></th>
                     <th>Resolved IPs</th>
+                    <th>Sources</th>
                     <th class="sortable-th dns-th" data-sortcol="flags" onclick="sortDnsByColumn('flags')">Flags<span class="sort-arrow"> ↕</span></th>
                 </tr>
             </thead>
@@ -382,6 +519,18 @@
                             {% endif %}
                         {% else %}
                             <span style="color:var(--muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if q.source_ips and q.source_ips | length > 1 %}
+                        <span class="dns-sources-toggle" onclick="toggleDnsSources({{ loop.index0 }})">{{ q.source_ips | length }} hosts ▼</span>
+                        <div class="dns-sources-list" id="dns-sources-{{ loop.index0 }}">
+                            {% for ip in q.source_ips %}<span class="ip-int">{{ ip }}</span>{% if not loop.last %}, {% endif %}{% endfor %}
+                        </div>
+                        {% elif q.source_ips and q.source_ips | length == 1 %}
+                        <span style="color:var(--muted);font-size:11px;">1 host</span>
+                        {% else %}
+                        <span style="color:var(--muted);">—</span>
                         {% endif %}
                     </td>
                     <td>{% for f in q.flags %}<span class="flag-tag">{{ f.label }}</span>{% endfor %}</td>
@@ -700,6 +849,19 @@ function showTab(name, btn) {
     btn.classList.add('active');
 }
 
+// ── Findings card → tab switching ─────────────────────────────────────────
+function switchTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('tab-' + name).classList.add('active');
+    const btns = document.querySelectorAll('.tab-btn');
+    for (const b of btns) {
+        if (b.getAttribute('onclick') && b.getAttribute('onclick').includes("'" + name + "'")) {
+            b.classList.add('active'); break;
+        }
+    }
+}
+
 // ── IOC export dropdown ────────────────────────────────────────────────────
 function toggleIocMenu(e) {
     e.stopPropagation();
@@ -832,6 +994,14 @@ function updateDnsSortUI() {
 }
 
 function toggleDnsSort() { sortDnsByColumn('flags'); }
+
+function toggleDnsSources(idx) {
+    const list = document.getElementById('dns-sources-' + idx);
+    if (!list) return;
+    const expanded = list.classList.toggle('expanded');
+    const toggle = list.previousElementSibling;
+    if (toggle) toggle.textContent = toggle.textContent.replace(/[▼▲]/, expanded ? '▲' : '▼');
+}
 
 // ── Timeline ───────────────────────────────────────────────────────────────
 const tlEvents = {{ results.timeline | tojson }};

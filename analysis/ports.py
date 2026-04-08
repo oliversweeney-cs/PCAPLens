@@ -1,5 +1,5 @@
 from collections import Counter, defaultdict
-from .constants import SUSPICIOUS_PORTS, PORT_LABELS, EPHEMERAL_PORT_THRESHOLD
+from .constants import SUSPICIOUS_PORTS, PORT_LABELS, EPHEMERAL_PORT_THRESHOLD, CLEARTEXT_PROTOCOLS
 
 
 def analyse_ports(packets):
@@ -43,11 +43,18 @@ def analyse_ports(packets):
                 'count': count,
                 'service': PORT_LABELS.get(port, ''),
                 'suspicious': port in SUSPICIOUS_PORTS,
+                'cleartext': CLEARTEXT_PROTOCOLS.get(port),
                 'first_seen': first_seen,
             })
+
+    cleartext_ports = [
+        {'port': p['port'], 'protocol': p['cleartext'], 'count': p['count']}
+        for p in well_known if p['cleartext']
+    ]
 
     return {
         'ports': well_known,
         'ephemeral_ports': ephemeral_ports,
         'ephemeral_total': ephemeral_total,
+        'cleartext_ports': cleartext_ports,
     }
