@@ -1,12 +1,19 @@
-from .constants import MITRE_TECHNIQUES
+import subprocess
+from datetime import datetime, timedelta, timezone
+
+from .constants import MITRE_TECHNIQUES, TSHARK_PATH
 
 
-def build_timeline(results):
+def build_timeline(results, pcap_path=None):
     """
     Build a chronological list of security-relevant events from all analysis modules.
-    Each event: {timestamp, category, summary, severity}
+    Each event: {timestamp, timestamp_utc, timestamp_relative, category, summary, severity, frame_number}
     timestamp is relative to capture start (seconds).
+    timestamp_utc is the absolute ISO 8601 UTC string.
+    timestamp_relative is the formatted relative string (e.g. "0.001s").
+    frame_number is the packet number where available, otherwise None.
     """
+    capture_start = _get_capture_start_utc(pcap_path)
     events = []
 
     # DNS query events
@@ -23,6 +30,7 @@ def build_timeline(results):
             'category': 'suspicious' if is_flagged else 'dns',
             'summary': summary,
             'severity': 'suspicious' if is_flagged else 'normal',
+            'frame_number': None,
         })
 
     # HTTP request events
@@ -42,6 +50,7 @@ def build_timeline(results):
             'category': 'suspicious' if is_suspicious else 'http',
             'summary': summary,
             'severity': 'suspicious' if is_suspicious else 'normal',
+            'frame_number': req.get('frame_number'),
         })
 
     # File extraction events
@@ -57,6 +66,7 @@ def build_timeline(results):
             'category': 'suspicious' if is_suspicious else 'files',
             'summary': summary,
             'severity': 'suspicious' if is_suspicious else 'normal',
+            'frame_number': None,
         })
 
     # Suspicious port events
@@ -70,6 +80,7 @@ def build_timeline(results):
                 'category': 'suspicious',
                 'summary': summary,
                 'severity': 'suspicious',
+                'frame_number': None,
             })
 
     # Cleartext protocol events (one per protocol)
@@ -86,6 +97,7 @@ def build_timeline(results):
             'category': 'suspicious',
             'summary': summary,
             'severity': 'normal',
+            'frame_number': None,
         })
 
     # Flagged user agent events (first seen)
@@ -99,6 +111,7 @@ def build_timeline(results):
                 'category': 'suspicious',
                 'summary': summary,
                 'severity': 'suspicious',
+                'frame_number': None,
             })
 
     # Cleartext credential events
@@ -110,6 +123,7 @@ def build_timeline(results):
             'category': 'suspicious',
             'summary': summary,
             'severity': 'suspicious',
+            'frame_number': None,
         })
 
     # Flagged TLS session events
@@ -126,6 +140,40 @@ def build_timeline(results):
             'category': 'tls',
             'summary': summary,
             'severity': 'suspicious' if is_red else 'normal',
+            'frame_number': None,
+        })
+
+    # Connection events (first SYN, SYN/ACKs, scanner detection)
+    conn_data = results.get('connections', {})
+    conn_stats = conn_data.get('stats', {})
+    if conn_stats.get('first_syn_time'):
+        events.append({
+            'timestamp': 0.0,
+            'category': 'connections',
+            'summary': f"First SYN packet (frame #{conn_stats['first_syn_frame']}): {conn_stats['first_syn_time']}",
+            'severity': 'info',
+            'frame_number': conn_stats.get('first_syn_frame'),
+        })
+    for op in conn_data.get('open_ports', []):
+        service = f" ({op['service']})" if op.get('service') else ''
+        events.append({
+            'timestamp': 0.0,
+            'category': 'connections',
+            'summary': f"SYN/ACK: {op['dst_ip']}:{op['port']}{service} open (frame #{op['frame_number']})",
+            'severity': 'info',
+            'frame_number': op.get('frame_number'),
+        })
+    scan = conn_data.get('scan_summary', {})
+    if scan.get('scanner_ip'):
+        n_ports = len(scan.get('ports_scanned', []))
+        n_targets = len(scan.get('targets', []))
+        duration = scan.get('scan_duration_seconds', 0)
+        events.append({
+            'timestamp': 0.0,
+            'category': 'suspicious',
+            'summary': f"Port scan detected: {scan['scanner_ip']} scanned {n_ports} ports across {n_targets} targets in {duration}s",
+            'severity': 'high',
+            'frame_number': None,
         })
 
     # MITRE technique events — timestamp derived from earliest evidence
@@ -138,10 +186,71 @@ def build_timeline(results):
             'category': 'mitre',
             'summary': summary,
             'severity': 'suspicious',
+            'frame_number': None,
         })
 
     events.sort(key=lambda e: e['timestamp'])
+
+    # Compute absolute UTC timestamps and formatted relative strings
+    for ev in events:
+        rel = ev['timestamp']
+        ev['timestamp_relative'] = f"{rel:.3f}s"
+        if capture_start:
+            abs_dt = capture_start + timedelta(seconds=rel)
+            ev['timestamp_utc'] = abs_dt.strftime('%Y-%m-%dT%H:%M:%S.%fZ')
+        else:
+            ev['timestamp_utc'] = ''
+
     return events
+
+
+def _get_capture_start_utc(pcap_path):
+    """Extract the absolute UTC timestamp of the first packet using tshark."""
+    if not pcap_path:
+        return None
+    try:
+        result = subprocess.run(
+            [TSHARK_PATH, '-r', pcap_path, '-T', 'fields', '-e', 'frame.time_utc', '-c', '1'],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        raw = result.stdout.strip()
+        if not raw:
+            return None
+        return _parse_tshark_time(raw)
+    except Exception:
+        return None
+
+
+def _parse_tshark_time(raw):
+    """Parse tshark frame.time into a Python datetime (UTC)."""
+    cleaned = raw.strip()
+    # Truncate nanoseconds to microseconds — find '.' and keep up to 6 decimal digits
+    dot_idx = cleaned.find('.')
+    if dot_idx != -1:
+        space_after = cleaned.find(' ', dot_idx)
+        if space_after != -1:
+            frac = cleaned[dot_idx + 1:space_after]
+            frac_trimmed = frac[:6].ljust(6, '0')
+            cleaned = cleaned[:dot_idx + 1] + frac_trimmed + cleaned[space_after:]
+        else:
+            frac = cleaned[dot_idx + 1:]
+            frac_trimmed = frac[:6].ljust(6, '0')
+            cleaned = cleaned[:dot_idx + 1] + frac_trimmed
+
+    for fmt in (
+        '%b %d, %Y %H:%M:%S.%f %Z',
+        '%b  %d, %Y %H:%M:%S.%f %Z',
+        '%b %d, %Y %H:%M:%S.%f',
+        '%b  %d, %Y %H:%M:%S.%f',
+    ):
+        try:
+            dt = datetime.strptime(cleaned, fmt)
+            return dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    return None
 
 
 def _mitre_earliest_timestamp(tech_id, results):
@@ -196,6 +305,9 @@ def _mitre_earliest_timestamp(tech_id, results):
                     times.append(p.get('first_seen', 0.0))
                     break
         return min(times) if times else 0.0
+
+    if tech_id == 'T1046':
+        return 0.0  # Connection timestamps are absolute, not relative
 
     return 0.0
 

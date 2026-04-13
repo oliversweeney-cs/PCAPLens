@@ -16,6 +16,7 @@ def analyse_mitre(results):
     _check_tls_malicious_ja3(results, triggered)
     _check_tls_nonstandard_port(results, triggered)
     _check_cleartext_protocols(results, triggered)
+    _check_network_scan(results, triggered)
     return list(triggered.values())
 
 
@@ -223,6 +224,25 @@ def _check_cleartext_protocols(results, triggered):
             for cp in cleartext
         ]
         triggered['T1040'] = t
+
+
+def _check_network_scan(results, triggered):
+    scan = results.get('connections', {}).get('scan_summary', {})
+    scanner_ip = scan.get('scanner_ip')
+    if not scanner_ip:
+        return
+    targets = scan.get('targets', [])
+    ports = scan.get('ports_scanned', [])
+    duration = scan.get('scan_duration_seconds', 0)
+    t = _technique('T1046')
+    t['evidence'] = [
+        {
+            'indicator': scanner_ip,
+            'flag_type': 'Port Scanner',
+            'value': f"{len(targets)} targets, {len(ports)} ports in {duration}s",
+        },
+    ]
+    triggered['T1046'] = t
 
 
 def _technique(technique_id):

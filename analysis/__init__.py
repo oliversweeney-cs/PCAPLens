@@ -6,6 +6,7 @@ from .dns import analyse_dns
 from .http import analyse_http
 from .files import extract_files
 from .tls import analyse_tls
+from .connections import analyse_connections
 from .mitre import analyse_mitre
 from .timeline import build_timeline
 
@@ -20,8 +21,9 @@ def run_analysis(filepath):
         'http': analyse_http(packets),
         'files': extract_files(filepath),
         'tls': analyse_tls(filepath),
+        'connections': analyse_connections(filepath),
     }
     results['overview']['top_external_destinations'] = compute_top_external_destinations(packets, results)
     results['mitre'] = analyse_mitre(results)
-    results['timeline'] = build_timeline(results)
+    results['timeline'] = build_timeline(results, pcap_path=filepath)
     return results

@@ -182,6 +182,20 @@ TLS_VERSION_MAP = {
     '0x0304': 'TLS 1.3', '772': 'TLS 1.3',
 }
 
+COMMON_SERVICES = {
+    21: 'FTP', 22: 'SSH', 25: 'SMTP', 53: 'DNS', 80: 'HTTP',
+    88: 'Kerberos', 110: 'POP3', 135: 'MSRPC', 137: 'NetBIOS-NS',
+    138: 'NetBIOS-DGM', 139: 'NetBIOS-SSN', 143: 'IMAP',
+    389: 'LDAP', 443: 'HTTPS', 445: 'SMB', 465: 'SMTPS',
+    514: 'Syslog', 587: 'SMTP-Sub', 636: 'LDAPS',
+    993: 'IMAPS', 995: 'POP3S', 1080: 'SOCKS', 1433: 'MSSQL',
+    1521: 'Oracle', 3268: 'LDAP-GC', 3269: 'LDAPS-GC',
+    3306: 'MySQL', 3389: 'RDP', 5432: 'PostgreSQL', 5900: 'VNC',
+    5985: 'WinRM-HTTP', 5986: 'WinRM-HTTPS',
+    8080: 'HTTP-Alt', 8443: 'HTTPS-Alt', 8888: 'HTTP-Alt',
+    9200: 'Elasticsearch', 9300: 'Elasticsearch', 10001: 'Custom/IoT',
+}
+
 MITRE_TECHNIQUES = [
     {
         'id': 'T1571',
@@ -248,5 +262,11 @@ MITRE_TECHNIQUES = [
         'name': 'Network Sniffing',
         'url': 'https://attack.mitre.org/techniques/T1040',
         'trigger': 'cleartext_protocols',
+    },
+    {
+        'id': 'T1046',
+        'name': 'Network Service Scanning',
+        'url': 'https://attack.mitre.org/techniques/T1046',
+        'trigger': 'network_scan',
     },
 ]

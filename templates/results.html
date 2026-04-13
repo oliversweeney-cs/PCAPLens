@@ -219,6 +219,27 @@
         background: var(--danger); margin-right: 5px; vertical-align: middle;
     }
 
+    /* ── Connections tab ── */
+    .conn-type-badge {
+        display: inline-block; padding: 1px 6px; border-radius: 3px;
+        font-size: 10px; font-weight: 600; font-family: monospace; text-transform: uppercase;
+    }
+    .conn-type-syn { background: rgba(56,139,253,0.15); color: #58a6ff; border: 1px solid rgba(56,139,253,0.3); }
+    .conn-type-synack { background: rgba(63,185,80,0.12); color: var(--success); border: 1px solid rgba(63,185,80,0.3); }
+    tr.conn-synack td { background: rgba(63,185,80,0.04); }
+    .scan-summary-card {
+        background: rgba(248,81,73,0.06); border: 1px solid rgba(248,81,73,0.3);
+        border-radius: 6px; padding: 14px 16px; margin-bottom: 16px;
+    }
+    .scan-summary-title { color: var(--danger); font-weight: 600; margin-bottom: 8px; font-size: 13px; }
+    .scan-summary-grid {
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 10px;
+    }
+    .scan-detail { font-family: monospace; font-size: 12px; color: var(--muted); }
+    .scan-detail strong { color: var(--danger); }
+    .cat-connections { background: rgba(56,139,253,0.15); color: #58a6ff; border: 1px solid rgba(56,139,253,0.3); }
+
     /* ── Overview: Ratio Alerts ── */
     .ratio-alert {
         display: flex; align-items: center; gap: 8px; padding: 8px 14px;
@@ -271,6 +292,7 @@
         Ports &amp; Protocols
         {% if suspicious_ports %}<span class="badge badge-danger">{{ suspicious_ports | length }}</span>{% endif %}
     </button>
+    <button class="tab-btn" onclick="showTab('connections', this)">Connections</button>
     <button class="tab-btn" onclick="showTab('dns', this)">
         DNS{% if dns_flagged %} <span class="badge badge-danger">{{ dns_flagged }}</span>{% endif %}
     </button>
@@ -465,6 +487,96 @@
         <div class="empty-state">No port data</div>
         {% endif %}
     </div>
+</div>
+
+{# ── CONNECTIONS ── #}
+{% set conn = results.connections %}
+{% set conn_stats = conn.stats %}
+{% set conn_scan = conn.scan_summary %}
+<div id="tab-connections" class="tab-panel">
+    <div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:16px;">
+        <div class="stat-card"><div class="stat-value">{{ '{:,}'.format(conn_stats.total_syns) }}</div><div class="stat-label">Total SYN Packets</div></div>
+        <div class="stat-card"><div class="stat-value">{{ '{:,}'.format(conn_stats.total_synacks) }}</div><div class="stat-label">Total SYN/ACK Packets</div></div>
+        <div class="stat-card">
+            {% if conn_stats.first_syn_time %}
+            <div class="stat-value" style="font-size:14px;">{{ conn_stats.first_syn_time.split('T')[0] }}</div>
+            <div class="stat-value" style="font-size:14px;">T{{ conn_stats.first_syn_time.split('T')[1] }}</div>
+            <div class="stat-label" style="margin-top:4px;">First SYN (UTC) <span style="color:var(--muted);font-size:10px;">#{{ conn_stats.first_syn_frame }}</span></div>
+            {% else %}
+            <div class="stat-value" style="font-size:14px;">—</div>
+            <div class="stat-label">First SYN (UTC)</div>
+            {% endif %}
+        </div>
+        <div class="stat-card">
+            {% if conn_stats.first_synack_time %}
+            <div class="stat-value" style="font-size:14px;">{{ conn_stats.first_synack_time.split('T')[0] }}</div>
+            <div class="stat-value" style="font-size:14px;">T{{ conn_stats.first_synack_time.split('T')[1] }}</div>
+            <div class="stat-label" style="margin-top:4px;">First SYN/ACK (UTC) <span style="color:var(--muted);font-size:10px;">#{{ conn_stats.first_synack_frame }}</span></div>
+            {% else %}
+            <div class="stat-value" style="font-size:14px;">—</div>
+            <div class="stat-label">First SYN/ACK (UTC)</div>
+            {% endif %}
+        </div>
+        <div class="stat-card"><div class="stat-value">{{ conn_stats.unique_src_ips }}</div><div class="stat-label">Unique Source IPs</div></div>
+        <div class="stat-card"><div class="stat-value">{{ conn_stats.unique_dst_ips }}</div><div class="stat-label">Unique Dest IPs</div></div>
+        <div class="stat-card"><div class="stat-value">{{ conn_stats.unique_dst_ports }}</div><div class="stat-label">Unique Ports Scanned</div></div>
+    </div>
+
+    {% if conn_scan.scanner_ip %}
+    <div class="scan-summary-card">
+        <div class="scan-summary-title">⚠ Port Scan Detected</div>
+        <div class="scan-summary-grid">
+            <div class="scan-detail"><strong>{{ conn_scan.scanner_ip }}</strong><br>Scanner IP</div>
+            <div class="scan-detail"><strong>{{ conn_scan.targets | length }}</strong> targets<br>{{ conn_scan.targets | join(', ') }}</div>
+            <div class="scan-detail"><strong>{{ conn_scan.ports_scanned | length }}</strong> ports scanned</div>
+            <div class="scan-detail"><strong>{{ conn_scan.scan_duration_seconds }}s</strong> scan duration</div>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if conn.open_ports %}
+    <div class="card" style="margin-bottom:16px;">
+        <div class="section-title">Open Ports (SYN/ACK Responses)</div>
+        <table style="margin-top:12px;">
+            <thead><tr><th>Destination IP</th><th>Port</th><th>Service</th><th>Response Packet #</th><th>Timestamp (UTC)</th></tr></thead>
+            <tbody>
+                {% for op in conn.open_ports %}
+                <tr>
+                    <td>{{ op.dst_ip }}</td>
+                    <td>{{ op.port }}</td>
+                    <td>{{ op.service or '—' }}</td>
+                    <td>{{ op.frame_number }}</td>
+                    <td style="white-space:nowrap;">{{ op.timestamp_utc }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+
+    {% if conn.connections %}
+    <div class="card">
+        <div class="section-title">Full Connection Log</div>
+        <table style="margin-top:12px;">
+            <thead><tr><th>Packet #</th><th>Timestamp (UTC)</th><th>Source IP</th><th>Destination IP</th><th>Src Port</th><th>Dst Port</th><th>Type</th></tr></thead>
+            <tbody>
+                {% for c in conn.connections %}
+                <tr{% if c.type == 'SYN/ACK' %} class="conn-synack"{% endif %}>
+                    <td>{{ c.frame_number }}</td>
+                    <td style="white-space:nowrap;">{{ c.timestamp_utc }}</td>
+                    <td>{{ c.src_ip }}</td>
+                    <td>{{ c.dst_ip }}</td>
+                    <td>{{ c.src_port }}</td>
+                    <td>{{ c.dst_port }}</td>
+                    <td><span class="conn-type-badge conn-type-{{ 'synack' if c.type == 'SYN/ACK' else 'syn' }}">{{ c.type }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card"><div class="empty-state">No TCP SYN/SYN-ACK packets found in this capture</div></div>
+    {% endif %}
 </div>
 
 {# ── DNS ── #}
@@ -779,6 +891,7 @@
                 <option value="http">HTTP</option>
                 <option value="tls">TLS</option>
                 <option value="files">Files</option>
+                <option value="connections">Connections</option>
                 <option value="suspicious">Suspicious</option>
                 <option value="mitre">MITRE</option>
             </select>
@@ -794,7 +907,10 @@
                     data-category="{{ ev.category }}"
                     data-idx="{{ loop.index0 }}"
                     onclick="selectTlRow({{ loop.index0 }})">
-                    <td style="white-space:nowrap;">{{ ev.timestamp | format_rel_time }}</td>
+                    <td style="white-space:nowrap;">
+                        <div style="font-family:monospace;font-size:12px;">{{ ev.timestamp_utc or '—' }}</div>
+                        <div style="font-size:10px;color:var(--muted);">+{{ ev.timestamp_relative }}{% if ev.frame_number %} <span style="color:var(--muted);">#{{ ev.frame_number }}</span>{% endif %}</div>
+                    </td>
                     <td><span class="cat-badge cat-{{ ev.category }}">{{ ev.category }}</span></td>
                     <td>{{ ev.summary }}</td>
                 </tr>
